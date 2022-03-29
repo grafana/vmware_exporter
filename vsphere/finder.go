@@ -45,8 +45,6 @@ func (f *finder) findResources(ctx context.Context, resType, path string, objs m
 	if err != nil {
 		return err
 	}
-	// TODO: logger
-	//f.client.log.Debugf("Find(%s, %s) returned %d objects", resType, path, len(objs))
 	return nil
 }
 
@@ -60,7 +58,6 @@ func (f *finder) descend(ctx context.Context, root types.ManagedObjectReference,
 	}
 
 	// Determine child types
-
 	ct, ok := childTypes[root.Reference().Type]
 	if !ok {
 		// We don't know how to handle children of this type. Stop descending.

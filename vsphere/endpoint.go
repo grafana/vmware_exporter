@@ -56,14 +56,13 @@ type resourceKind struct {
 type objectMap map[string]*objectRef
 
 type objectRef struct {
-	name         string
-	altID        string
-	ref          types.ManagedObjectReference
-	parentRef    *types.ManagedObjectReference //Pointer because it must be nillable
-	guest        string
-	dcname       string
-	customValues map[string]string
-	lookup       map[string]string
+	name      string
+	altID     string
+	ref       types.ManagedObjectReference
+	parentRef *types.ManagedObjectReference //Pointer because it must be nillable
+	guest     string
+	dcname    string
+	lookup    map[string]string
 }
 
 func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, error) {
@@ -152,7 +151,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, e
 
 func (e *endpoint) init(ctx context.Context) error {
 	if e.cfg.ObjectDiscoveryInterval > 0 {
-		//e.cfg.Log.Debug("Running initial discovery")
 		e.initalDiscovery(ctx)
 	}
 	e.initialized = true
@@ -164,7 +162,26 @@ func (e *endpoint) initalDiscovery(ctx context.Context) {
 	if err != nil && err != context.Canceled {
 		level.Error(e.log).Log("msg", "error in initialDiscovery", "host", e.url.Host, "err", err.Error())
 	}
-	//e.startDiscovery(ctx)
+	e.startDiscovery(ctx)
+}
+
+func (e *endpoint) startDiscovery(ctx context.Context) {
+	e.discoveryTicker = time.NewTicker(e.cfg.ObjectDiscoveryInterval)
+	go func() {
+		for {
+			select {
+			case <-e.discoveryTicker.C:
+				err := e.discover(ctx)
+				if err != nil && err != context.Canceled {
+					level.Error(e.log).Log("msg", "discovery error", "host", e.url.Host, "err", err.Error())
+				}
+			case <-ctx.Done():
+				level.Debug(e.log).Log("msg", "existing discovery goroutine", "host", e.url.Host)
+				e.discoveryTicker.Stop()
+				return
+			}
+		}
+	}()
 }
 
 func (e *endpoint) discover(ctx context.Context) error {
