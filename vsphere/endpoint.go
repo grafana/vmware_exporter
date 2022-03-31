@@ -149,15 +149,16 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, e
 	return &e, nil
 }
 
+// Note that canceling the context will cancel the discovery process.
 func (e *endpoint) init(ctx context.Context) error {
 	if e.cfg.ObjectDiscoveryInterval > 0 {
-		e.initalDiscovery(ctx)
+		e.initialDiscovery(ctx)
 	}
 	e.initialized = true
 	return nil
 }
 
-func (e *endpoint) initalDiscovery(ctx context.Context) {
+func (e *endpoint) initialDiscovery(ctx context.Context) {
 	err := e.discover(ctx)
 	if err != nil && err != context.Canceled {
 		level.Error(e.log).Log("msg", "error in initialDiscovery", "host", e.url.Host, "err", err.Error())
