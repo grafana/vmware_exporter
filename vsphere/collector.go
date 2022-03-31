@@ -22,7 +22,7 @@ func (c *vsphereCollector) Describe(descs chan<- *prometheus.Desc) {
 func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	ctx := context.Background()
 
-	client, err := c.endpoint.clientFactory.GetClient(ctx)
+	myClient, err := c.endpoint.clientFactory.GetClient(ctx)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
 		return
@@ -36,7 +36,7 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	// Retrieve counters name list
-	counters, err := client.counterInfoByName(ctx)
+	counters, err := myClient.counterInfoByName(ctx)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
 		return
@@ -55,13 +55,13 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	// Query metrics
-	sample, err := client.Perf.SampleByName(ctx, spec, names, refs)
+	sample, err := myClient.Perf.SampleByName(ctx, spec, names, refs)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting sample by name", "err", err)
 		return
 	}
 
-	result, err := client.Perf.ToMetricSeries(ctx, sample)
+	result, err := myClient.Perf.ToMetricSeries(ctx, sample)
 	if err != nil {
 		level.Debug(c.logger).Log("err", err)
 		return

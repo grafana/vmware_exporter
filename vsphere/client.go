@@ -46,8 +46,7 @@ func newClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
 	}
 }
 
-// GetClient returns a client. The caller is responsible for calling Release()
-// on the client once it's done using it.
+// GetClient returns a client.
 func (cf *clientFactory) GetClient(ctx context.Context) (*client, error) {
 	cf.mux.Lock()
 	defer cf.mux.Unlock()
