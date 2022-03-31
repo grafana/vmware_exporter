@@ -28,7 +28,7 @@ type endpoint struct {
 	discoveryTicker  *time.Ticker
 	collectMux       sync.RWMutex
 	initialized      bool
-	clientFactory    *ClientFactory
+	clientFactory    *clientFactory
 	busy             sync.Mutex
 	metricNameLookup map[int32]string
 	metricNameMux    sync.RWMutex
@@ -70,7 +70,7 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, e
 		cfg:           cfg,
 		url:           url,
 		initialized:   false,
-		clientFactory: NewClientFactory(url, cfg),
+		clientFactory: newClientFactory(url, cfg),
 		log:           log,
 	}
 
@@ -254,11 +254,11 @@ func (e *endpoint) discover(ctx context.Context) error {
 	return nil
 }
 
-func (e *endpoint) getDatacenterName(ctx context.Context, client *Client, cache map[string]string, r types.ManagedObjectReference) (string, bool) {
+func (e *endpoint) getDatacenterName(ctx context.Context, client *client, cache map[string]string, r types.ManagedObjectReference) (string, bool) {
 	return e.getAncestorName(ctx, client, "Datacenter", cache, r)
 }
 
-func (e *endpoint) simpleMetadataSelect(ctx context.Context, client *Client, res *resourceKind) {
+func (e *endpoint) simpleMetadataSelect(ctx context.Context, client *client, res *resourceKind) {
 	//e.log.Debugf("Using fast metric metadata selection for %s", res.name)
 	m, err := client.counterInfoByName(ctx)
 	if err != nil {
@@ -298,7 +298,7 @@ func (e *endpoint) reloadMetricNameMap(ctx context.Context) error {
 	return nil
 }
 
-func (e *endpoint) getAncestorName(ctx context.Context, client *Client, resourceType string, cache map[string]string, r types.ManagedObjectReference) (string, bool) {
+func (e *endpoint) getAncestorName(ctx context.Context, client *client, resourceType string, cache map[string]string, r types.ManagedObjectReference) (string, bool) {
 	path := make([]string, 0)
 	returnVal := ""
 	here := r

@@ -13,7 +13,7 @@ type Config struct {
 	VSphereURL    *url.URL
 }
 
-var DefaultConfig = &Config{
+var defaultConfig = &Config{
 	ListenAddr:    ":9237",
 	TelemetryPath: "/metrics",
 	TLSConfigPath: "",
@@ -42,11 +42,11 @@ func (v soapURLFlag) Set(s string) error {
 func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	// Exporter web configs
 	{
-		fs.StringVar(&c.ListenAddr, "web.listen-address", DefaultConfig.ListenAddr,
+		fs.StringVar(&c.ListenAddr, "web.listen-address", defaultConfig.ListenAddr,
 			"Address on which to expose metrics and web interface.")
-		fs.StringVar(&c.TelemetryPath, "web.telemetry-path", DefaultConfig.TelemetryPath,
+		fs.StringVar(&c.TelemetryPath, "web.telemetry-path", defaultConfig.TelemetryPath,
 			"Path under which to expose metrics.")
-		fs.StringVar(&c.TLSConfigPath, "web.config", DefaultConfig.TLSConfigPath,
+		fs.StringVar(&c.TLSConfigPath, "web.config", defaultConfig.TLSConfigPath,
 			"Path to config yaml file that can enable TLS or authentication.")
 	}
 

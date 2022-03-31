@@ -17,7 +17,7 @@ var addFields map[string][]string
 var containers map[string]interface{}
 
 type finder struct {
-	client *Client
+	client *client
 }
 
 // ResourceFilter is a convenience class holding a finder and a set of paths. It is useful when you need a

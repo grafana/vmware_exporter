@@ -18,15 +18,15 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-type ClientFactory struct {
-	client     *Client
+type clientFactory struct {
+	client     *client
 	mux        sync.Mutex
 	vSphereURL *url.URL
 	cfg        *vSphereConfig
 }
 
-// Client represents a connection to vSphere and is backed by a govmomi connection
-type Client struct {
+// client represents a connection to vSphere and is backed by a govmomi connection
+type client struct {
 	Client    *govmomi.Client
 	Views     *view.Manager
 	Root      *view.ContainerView
@@ -37,9 +37,9 @@ type Client struct {
 	logger    log.Logger
 }
 
-// NewClientFactory creates a new ClientFactory and prepares it for use.
-func NewClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *ClientFactory {
-	return &ClientFactory{
+// newClientFactory creates a new clientFactory and prepares it for use.
+func newClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
+	return &clientFactory{
 		client:     nil,
 		cfg:        cfg,
 		vSphereURL: vSphereURL,
@@ -48,14 +48,14 @@ func NewClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *ClientFactory {
 
 // GetClient returns a client. The caller is responsible for calling Release()
 // on the client once it's done using it.
-func (cf *ClientFactory) GetClient(ctx context.Context) (*Client, error) {
+func (cf *clientFactory) GetClient(ctx context.Context) (*client, error) {
 	cf.mux.Lock()
 	defer cf.mux.Unlock()
 	retrying := false
 	for {
 		if cf.client == nil {
 			var err error
-			if cf.client, err = NewClient(ctx, cf.vSphereURL, cf.cfg); err != nil {
+			if cf.client, err = newClient(ctx, cf.vSphereURL, cf.cfg); err != nil {
 				return nil, err
 			}
 		}
@@ -66,7 +66,7 @@ func (cf *ClientFactory) GetClient(ctx context.Context) (*Client, error) {
 		ctx1, cancel1 := context.WithTimeout(ctx, cf.cfg.Timeout)
 		defer cancel1()
 		if _, err := methods.GetCurrentTime(ctx1, cf.client.Client); err != nil {
-			//cf.cfg.Log.Info("Client session seems to have time out. Reauthenticating!")
+			//cf.cfg.Log.Info("client session seems to have time out. Reauthenticating!")
 			ctx2, cancel2 := context.WithTimeout(ctx, cf.cfg.Timeout)
 			defer cancel2()
 			if err := cf.client.Client.SessionManager.Login(ctx2, url.UserPassword(cf.cfg.Username, cf.cfg.Password)); err != nil {
@@ -86,9 +86,9 @@ func (cf *ClientFactory) GetClient(ctx context.Context) (*Client, error) {
 	}
 }
 
-// NewClient creates a new vSphere client based on the url and setting passed as parameters.
+// newClient creates a new vSphere client based on the url and setting passed as parameters.
 // TODO: tls config
-func NewClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*Client, error) {
+func newClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*client, error) {
 	if cfg.Username != "" {
 		vSphereURL.User = url.UserPassword(cfg.Username, cfg.Password)
 	}
@@ -126,7 +126,7 @@ func NewClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*C
 
 	p := performance.NewManager(c.Client)
 
-	client := &Client{
+	client := &client{
 		Client:  c,
 		Views:   m,
 		Root:    v,
@@ -138,14 +138,14 @@ func NewClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*C
 }
 
 // counterInfoByKey wraps performance.CounterInfoByKey to give it proper timeouts
-func (c *Client) counterInfoByKey(ctx context.Context) (map[int32]*types.PerfCounterInfo, error) {
+func (c *client) counterInfoByKey(ctx context.Context) (map[int32]*types.PerfCounterInfo, error) {
 	ctx1, cancel1 := context.WithTimeout(ctx, c.Timeout)
 	defer cancel1()
 	return c.Perf.CounterInfoByKey(ctx1)
 }
 
 // CounterInfoByName wraps performance.CounterInfoByName to give it proper timeouts
-func (c *Client) counterInfoByName(ctx context.Context) (map[string]*types.PerfCounterInfo, error) {
+func (c *client) counterInfoByName(ctx context.Context) (map[string]*types.PerfCounterInfo, error) {
 	ctx1, cancel1 := context.WithTimeout(ctx, c.Timeout)
 	defer cancel1()
 	return c.Perf.CounterInfoByName(ctx1)
