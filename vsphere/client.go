@@ -40,7 +40,6 @@ type client struct {
 // newClientFactory creates a new clientFactory and prepares it for use.
 func newClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
 	return &clientFactory{
-		client:     nil,
 		cfg:        cfg,
 		vSphereURL: vSphereURL,
 	}
