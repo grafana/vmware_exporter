@@ -6,16 +6,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/vmware/govmomi/performance"
-	"github.com/vmware/govmomi/view"
-	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/types"
 	"strings"
 )
 
 type vsphereCollector struct {
-	logger log.Logger
-	client *vim25.Client
+	logger   log.Logger
+	endpoint *endpoint
 }
 
 func (c *vsphereCollector) Describe(descs chan<- *prometheus.Desc) {
@@ -23,32 +20,23 @@ func (c *vsphereCollector) Describe(descs chan<- *prometheus.Desc) {
 }
 
 func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
-	ctx := context.TODO()
-	viewManager := view.NewManager(c.client)
-	perfManager := performance.NewManager(c.client)
+	ctx := context.Background()
 
-	v, err := viewManager.CreateContainerView(ctx, c.client.ServiceContent.RootFolder, nil, true)
+	myClient, err := c.endpoint.clientFactory.GetClient(ctx)
 	if err != nil {
+		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
 		return
 	}
 
-	defer v.Destroy(ctx)
-
-	refs, err := v.Find(ctx, []string{
-		"VirtualMachine",
-		"ClusterComputeResource",
-		"Datacenter",
-		"Datastore",
-		"HostSystem",
-		"ResourcePool",
-	}, nil)
-	if err != nil {
-		level.Debug(c.logger).Log("msg", "error in find", "err", err)
-		return
+	var refs []types.ManagedObjectReference
+	for _, r := range c.endpoint.resourceKinds {
+		for _, o := range r.objects {
+			refs = append(refs, o.ref)
+		}
 	}
 
 	// Retrieve counters name list
-	counters, err := perfManager.CounterInfoByName(ctx)
+	counters, err := myClient.counterInfoByName(ctx)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
 		return
@@ -67,13 +55,13 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	// Query metrics
-	sample, err := perfManager.SampleByName(ctx, spec, names, refs)
+	sample, err := myClient.Perf.SampleByName(ctx, spec, names, refs)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting sample by name", "err", err)
 		return
 	}
 
-	result, err := perfManager.ToMetricSeries(ctx, sample)
+	result, err := myClient.Perf.ToMetricSeries(ctx, sample)
 	if err != nil {
 		level.Debug(c.logger).Log("err", err)
 		return
@@ -82,7 +70,6 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	// Read result
 	for _, metric := range result {
 		name := strings.Split(fmt.Sprintf("%s", metric.Entity), ":")[1]
-		//collectMetric(metrics, &metric, "vm", name.Value)
 		for _, v := range metric.Value {
 			counter := counters[v.Name]
 			units := counter.UnitInfo.GetElementDescription().Label
@@ -118,12 +105,18 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 }
 
-func NewVSphereCollector(logger log.Logger, client *vim25.Client) (prometheus.Collector, error) {
+func newVSphereCollector(ctx context.Context, logger log.Logger, e *endpoint) (prometheus.Collector, error) {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
+
+	err := e.init(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return &vsphereCollector{
-		logger: logger,
-		client: client,
+		logger:   logger,
+		endpoint: e,
 	}, nil
 }
