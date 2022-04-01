@@ -10,11 +10,38 @@ import (
 	"strings"
 )
 
-var childTypes map[string][]string
-
-var addFields map[string][]string
-
-var containers map[string]interface{}
+var (
+	childTypes = map[string][]string{
+		"HostSystem":             {"VirtualMachine"},
+		"ComputeResource":        {"HostSystem", "ResourcePool", "VirtualApp"},
+		"ClusterComputeResource": {"HostSystem", "ResourcePool", "VirtualApp"},
+		"Datacenter":             {"Folder"},
+		"Folder": {
+			"Folder",
+			"Datacenter",
+			"VirtualMachine",
+			"ComputeResource",
+			"ClusterComputeResource",
+			"Datastore",
+		},
+	}
+	addFields = map[string][]string{
+		"HostSystem": {"parent", "summary.customValue", "customValue"},
+		"VirtualMachine": {"runtime.host", "config.guestId", "config.uuid", "runtime.powerState",
+			"summary.customValue", "guest.net", "guest.hostName", "customValue"},
+		"Datastore":              {"parent", "info", "customValue"},
+		"ClusterComputeResource": {"parent", "customValue"},
+		"Datacenter":             {"parent", "customValue"},
+	}
+	containers = map[string]interface{}{
+		"HostSystem":      nil,
+		"ComputeResource": nil,
+		"Datacenter":      nil,
+		"ResourcePool":    nil,
+		"Folder":          nil,
+		"VirtualApp":      nil,
+	}
+)
 
 type finder struct {
 	client *client
@@ -227,39 +254,4 @@ func objectContentToTypedArray(objs map[string]types.ObjectContent, dst interfac
 		rv.Set(reflect.Append(rv, reflect.ValueOf(v)))
 	}
 	return nil
-}
-
-func init() {
-	childTypes = map[string][]string{
-		"HostSystem":             {"VirtualMachine"},
-		"ComputeResource":        {"HostSystem", "ResourcePool", "VirtualApp"},
-		"ClusterComputeResource": {"HostSystem", "ResourcePool", "VirtualApp"},
-		"Datacenter":             {"Folder"},
-		"Folder": {
-			"Folder",
-			"Datacenter",
-			"VirtualMachine",
-			"ComputeResource",
-			"ClusterComputeResource",
-			"Datastore",
-		},
-	}
-
-	addFields = map[string][]string{
-		"HostSystem": {"parent", "summary.customValue", "customValue"},
-		"VirtualMachine": {"runtime.host", "config.guestId", "config.uuid", "runtime.powerState",
-			"summary.customValue", "guest.net", "guest.hostName", "customValue"},
-		"Datastore":              {"parent", "info", "customValue"},
-		"ClusterComputeResource": {"parent", "customValue"},
-		"Datacenter":             {"parent", "customValue"},
-	}
-
-	containers = map[string]interface{}{
-		"HostSystem":      nil,
-		"ComputeResource": nil,
-		"Datacenter":      nil,
-		"ResourcePool":    nil,
-		"Folder":          nil,
-		"VirtualApp":      nil,
-	}
 }
