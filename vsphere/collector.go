@@ -32,6 +32,7 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 		err = c.endpoint.discover(ctx)
 		if err != nil && err != context.Canceled {
 			level.Error(c.logger).Log("msg", "discovery error", "host", c.endpoint.url.Host, "err", err.Error())
+			return
 		}
 	}
 
