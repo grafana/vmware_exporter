@@ -128,7 +128,7 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 							sem.Release(1)
 						}()
 
-						sample, err := myClient.Perf.SampleByName(ctx, spec, names, refs)
+						sample, err := myClient.Perf.SampleByName(ctx, spec, names, chunk)
 						if err != nil {
 							level.Debug(c.logger).Log("msg", "error getting sample by name", "err", err)
 							return
