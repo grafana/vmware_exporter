@@ -2,21 +2,25 @@ package vsphere
 
 import (
 	"flag"
-	"github.com/vmware/govmomi/vim25/soap"
 	"net/url"
+	"time"
+
+	"github.com/vmware/govmomi/vim25/soap"
 )
 
 type Config struct {
-	ListenAddr    string
-	TelemetryPath string
-	TLSConfigPath string
-	VSphereURL    *url.URL
+	ListenAddr              string
+	TelemetryPath           string
+	TLSConfigPath           string
+	VSphereURL              *url.URL
+	ObjectDiscoveryInterval time.Duration
 }
 
 var defaultConfig = &Config{
-	ListenAddr:    ":9237",
-	TelemetryPath: "/metrics",
-	TLSConfigPath: "",
+	ListenAddr:              ":9237",
+	TelemetryPath:           "/metrics",
+	TLSConfigPath:           "",
+	ObjectDiscoveryInterval: 5 * time.Minute,
 }
 
 type soapURLFlag struct {
@@ -53,8 +57,11 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	// Vsphere client configs
 	{
 		u := &url.URL{}
-		fs.Var(&soapURLFlag{u}, "vsphere.url", "vSphereConfig SOAP URL")
+		fs.Var(&soapURLFlag{u}, "vsphere.url", "vSphere SDK URL")
 		c.VSphereURL = u
+		fs.DurationVar(&c.ObjectDiscoveryInterval, "vsphere.discovery-interval",
+			defaultConfig.ObjectDiscoveryInterval,
+			"Object discovery duration interval. Discovery will occur per scrape if set to 0.")
 	}
 
 }

@@ -24,8 +24,16 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	myClient, err := c.endpoint.clientFactory.GetClient(ctx)
 	if err != nil {
-		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
+		level.Debug(c.logger).Log("msg", "error getting client", "err", err)
 		return
+	}
+
+	if c.endpoint.cfg.ObjectDiscoveryInterval == 0 {
+		err = c.endpoint.discover(ctx)
+		if err != nil && err != context.Canceled {
+			level.Error(c.logger).Log("msg", "discovery error", "host", c.endpoint.url.Host, "err", err.Error())
+			return
+		}
 	}
 
 	var refs []types.ManagedObjectReference
@@ -93,7 +101,7 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 					constLabels)
 
 				// send metric
-				m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, float64(v.Value[0]))
+				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(v.Value[0]))
 				if err != nil {
 					level.Error(c.logger).Log("err", err)
 					continue
