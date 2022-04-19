@@ -70,7 +70,7 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, e
 		cfg:           cfg,
 		url:           url,
 		initialized:   false,
-		clientFactory: newClientFactory(url, cfg),
+		clientFactory: newClientFactory(log, url, cfg),
 		log:           log,
 	}
 
@@ -186,6 +186,8 @@ func (e *endpoint) startDiscovery(ctx context.Context) {
 }
 
 func (e *endpoint) discover(ctx context.Context) error {
+	level.Debug(e.log).Log("msg", "object discovery starting")
+	defer level.Debug(e.log).Log("msg", "object discovery complete")
 	e.busy.Lock()
 	defer e.busy.Unlock()
 	if ctx.Err() != nil {

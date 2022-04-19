@@ -7,6 +7,7 @@ require (
 	github.com/prometheus/client_golang v1.12.0
 	github.com/prometheus/exporter-toolkit v0.7.1
 	github.com/vmware/govmomi v0.27.2
+	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 )
 
 require (

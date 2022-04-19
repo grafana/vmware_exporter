@@ -5,7 +5,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/exporter-toolkit/web"
 	"net/http"
@@ -36,7 +35,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	}
 	vsphereCollector, err := newVSphereCollector(
 		ctx,
-		log.With(logger, "vsphere", "vsphere"),
+		log.With(logger, "collector", "vsphere"),
 		e,
 	)
 	if err != nil {
@@ -44,10 +43,11 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	}
 	registry.MustRegister(vsphereCollector)
 
-	goCollector := collectors.NewGoCollector()
-	registry.MustRegister(goCollector)
-	buildInfoCollector := collectors.NewBuildInfoCollector()
-	registry.MustRegister(buildInfoCollector)
+	// TODO: add this to /xmetrics endpoint
+	//goCollector := collectors.NewGoCollector()
+	//registry.MustRegister(goCollector)
+	//buildInfoCollector := collectors.NewBuildInfoCollector()
+	//registry.MustRegister(buildInfoCollector)
 
 	// create http server
 	topMux := http.NewServeMux()
