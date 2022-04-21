@@ -20,6 +20,7 @@ type vSphereConfig struct {
 	IPAddresses         []string
 	MetricLookback      int
 
+	RefChunkSize            int
 	MaxQueryObjects         int
 	MaxQueryMetrics         int
 	CollectConcurrency      int

@@ -12,6 +12,7 @@ type Config struct {
 	ListenAddr              string
 	TelemetryPath           string
 	TLSConfigPath           string
+	ChunkSize               int
 	VSphereURL              *url.URL
 	ObjectDiscoveryInterval time.Duration
 }
@@ -20,7 +21,8 @@ var defaultConfig = &Config{
 	ListenAddr:              ":9237",
 	TelemetryPath:           "/metrics",
 	TLSConfigPath:           "",
-	ObjectDiscoveryInterval: 5 * time.Minute,
+	ChunkSize:               5,
+	ObjectDiscoveryInterval: 0,
 }
 
 type soapURLFlag struct {
@@ -57,11 +59,13 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	// Vsphere client configs
 	{
 		u := &url.URL{}
-		fs.Var(&soapURLFlag{u}, "vsphere.url", "vSphere SDK URL")
+		fs.Var(&soapURLFlag{u}, "vsphere.url", "vSphere SDK URL.")
 		c.VSphereURL = u
 		fs.DurationVar(&c.ObjectDiscoveryInterval, "vsphere.discovery-interval",
 			defaultConfig.ObjectDiscoveryInterval,
 			"Object discovery duration interval. Discovery will occur per scrape if set to 0.")
+		fs.IntVar(&c.ChunkSize, "vsphere.mo-chunk-size", defaultConfig.ChunkSize,
+			"Managed object reference chunk size to use when fetching from vSphere.")
 	}
 
 }

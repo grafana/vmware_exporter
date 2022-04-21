@@ -46,10 +46,6 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	sem := semaphore.NewWeighted(int64(c.endpoint.cfg.CollectConcurrency))
-	maxMetrics := c.endpoint.cfg.MaxQueryMetrics
-	if maxMetrics < 1 {
-		maxMetrics = 1
-	}
 
 	counters, err := myClient.counterInfoByName(ctx)
 	if err != nil {
@@ -104,7 +100,7 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 				// chunk refs
 				var refChunks [][]types.ManagedObjectReference
 				refsSize := len(refs)
-				chunkSize := c.endpoint.cfg.MaxQueryMetrics
+				chunkSize := c.endpoint.cfg.RefChunkSize
 				for i := 0; i < refsSize; i += chunkSize {
 					end := i + chunkSize
 					if end > refsSize {

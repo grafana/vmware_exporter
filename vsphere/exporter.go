@@ -29,6 +29,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	registry := prometheus.NewPedanticRegistry()
 
 	defaultVSphere.ObjectDiscoveryInterval = cfg.ObjectDiscoveryInterval
+	defaultVSphere.RefChunkSize = cfg.ChunkSize
 	e, err := newEndpoint(defaultVSphere, cfg.VSphereURL, logger)
 	if err != nil {
 		return nil, err
