@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/vmware/govmomi"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/performance"
 	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/view"
@@ -18,11 +22,16 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
+// The highest number of metrics we can query for, no matter what settings
+// and server say.
+const absoluteMaxMetrics = 10000
+
 type clientFactory struct {
 	client     *client
 	mux        sync.Mutex
 	vSphereURL *url.URL
 	cfg        *vSphereConfig
+	logger     log.Logger
 }
 
 // client represents a connection to vSphere and is backed by a govmomi connection
@@ -38,10 +47,11 @@ type client struct {
 }
 
 // newClientFactory creates a new clientFactory and prepares it for use.
-func newClientFactory(vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
+func newClientFactory(l log.Logger, vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
 	return &clientFactory{
 		cfg:        cfg,
 		vSphereURL: vSphereURL,
+		logger:     l,
 	}
 }
 
@@ -53,7 +63,7 @@ func (cf *clientFactory) GetClient(ctx context.Context) (*client, error) {
 	for {
 		if cf.client == nil {
 			var err error
-			if cf.client, err = newClient(ctx, cf.vSphereURL, cf.cfg); err != nil {
+			if cf.client, err = newClient(ctx, cf.logger, cf.vSphereURL, cf.cfg); err != nil {
 				return nil, err
 			}
 		}
@@ -86,7 +96,7 @@ func (cf *clientFactory) GetClient(ctx context.Context) (*client, error) {
 
 // newClient creates a new vSphere client based on the url and setting passed as parameters.
 // TODO: tls config
-func newClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*client, error) {
+func newClient(ctx context.Context, l log.Logger, vSphereURL *url.URL, cfg *vSphereConfig) (*client, error) {
 	if cfg.Username != "" {
 		vSphereURL.User = url.UserPassword(cfg.Username, cfg.Password)
 	}
@@ -131,6 +141,18 @@ func newClient(ctx context.Context, vSphereURL *url.URL, cfg *vSphereConfig) (*c
 		Perf:    p,
 		Valid:   true,
 		Timeout: cfg.Timeout,
+		logger:  l,
+	}
+
+	// Adjust max query size if needed
+	ctx3, cancel3 := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel3()
+	n, err := client.getMaxQueryMetrics(ctx3)
+	if err != nil {
+		return nil, err
+	}
+	if n < cfg.MaxQueryMetrics {
+		cfg.MaxQueryMetrics = n
 	}
 	return client, nil
 }
@@ -142,9 +164,65 @@ func (c *client) counterInfoByKey(ctx context.Context) (map[int32]*types.PerfCou
 	return c.Perf.CounterInfoByKey(ctx1)
 }
 
-// CounterInfoByName wraps performance.CounterInfoByName to give it proper timeouts
+// counterInfoByName wraps performance.CounterInfoByName to give it proper timeouts
 func (c *client) counterInfoByName(ctx context.Context) (map[string]*types.PerfCounterInfo, error) {
 	ctx1, cancel1 := context.WithTimeout(ctx, c.Timeout)
 	defer cancel1()
 	return c.Perf.CounterInfoByName(ctx1)
+}
+
+// getServerTime returns the time at the vCenter server
+func (c *client) getServerTime(ctx context.Context) (time.Time, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
+	defer cancel()
+	t, err := methods.GetCurrentTime(ctx, c.Client)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return *t, nil
+}
+
+// getMaxQueryMetrics returns the max_query_metrics setting as configured in vCenter
+func (c *client) getMaxQueryMetrics(ctx context.Context) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
+	defer cancel()
+
+	om := object.NewOptionManager(c.Client.Client, *c.Client.Client.ServiceContent.Setting)
+	res, err := om.Query(ctx, "config.vpxd.stats.maxQueryMetrics")
+	if err == nil {
+		if len(res) > 0 {
+			if s, ok := res[0].GetOptionValue().Value.(string); ok {
+				v, err := strconv.Atoi(s)
+				if err == nil {
+					level.Debug(c.logger).Log("msg", "vCenter maxQueryMetrics is defined", "maxQueryMetrics", v)
+					if v == -1 {
+						// Whatever the server says, we never ask for more metrics than this.
+						return absoluteMaxMetrics, nil
+					}
+					return v, nil
+				}
+			}
+			// Fall through version-based inference if value isn't usable
+		}
+	} else {
+		level.Debug(c.logger).Log("msg", "option query for maxMetrics failed. Using default")
+	}
+
+	// No usable maxQueryMetrics setting. Infer based on version
+	ver := c.Client.Client.ServiceContent.About.Version
+	parts := strings.Split(ver, ".")
+	if len(parts) < 2 {
+		level.Warn(c.logger).Log("msg",
+			"vCenter returned an invalid version string. Using default query size=64", "version", ver)
+		return 64, nil
+	}
+	level.Debug(c.logger).Log("vCenter version", ver)
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, err
+	}
+	if major < 6 || major == 6 && parts[1] == "0" {
+		return 64, nil
+	}
+	return 256, nil
 }

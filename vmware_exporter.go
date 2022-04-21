@@ -19,7 +19,7 @@ func main() {
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 	logger = level.NewFilter(logger, level.AllowDebug())
 
-	e, err := vsphere.NewExporter(log.With(logger, "component", "exporter"), cfg)
+	e, err := vsphere.NewExporter(logger, cfg)
 	if err != nil {
 		level.Error(logger).Log("msg", "could not create new exporter", "err", err)
 		os.Exit(1)

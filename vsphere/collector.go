@@ -3,25 +3,29 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/vmware/govmomi/vim25/types"
-	"strings"
+	"golang.org/x/sync/semaphore"
 )
 
 type vsphereCollector struct {
 	logger   log.Logger
 	endpoint *endpoint
+	sem      *semaphore.Weighted
 }
 
-func (c *vsphereCollector) Describe(descs chan<- *prometheus.Desc) {
+func (c *vsphereCollector) Describe(chan<- *prometheus.Desc) {
 	level.Debug(c.logger).Log("msg", "describe")
 }
 
 func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	ctx := context.Background()
-
 	myClient, err := c.endpoint.clientFactory.GetClient(ctx)
 	if err != nil {
 		level.Debug(c.logger).Log("msg", "error getting client", "err", err)
@@ -29,66 +33,139 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	if c.endpoint.cfg.ObjectDiscoveryInterval == 0 {
-		err = c.endpoint.discover(ctx)
+		err := c.endpoint.discover(ctx)
 		if err != nil && err != context.Canceled {
 			level.Error(c.logger).Log("msg", "discovery error", "host", c.endpoint.url.Host, "err", err.Error())
 			return
 		}
 	}
 
-	var refs []types.ManagedObjectReference
-	for _, r := range c.endpoint.resourceKinds {
-		for _, o := range r.objects {
-			refs = append(refs, o.ref)
-		}
+	now, err := myClient.getServerTime(ctx)
+	if err != nil {
+		level.Error(c.logger).Log("msg", "failed to get server time", "err", err.Error())
+		return
 	}
 
-	// Retrieve counters name list
-	counters, err := myClient.counterInfoByName(ctx)
+	var wg sync.WaitGroup
+	for k, r := range c.endpoint.resourceKinds {
+		if r.enabled {
+			level.Debug(c.logger).Log("msg", "collecting metrics", "kind", k)
+			wg.Add(1)
+			go func(kind string, res *resourceKind) {
+				defer wg.Done()
+				c.collectResource(ctx, metrics, now, myClient, kind, res)
+			}(k, r)
+		}
+	}
+	wg.Wait()
+}
+
+func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- prometheus.Metric,
+	now time.Time, cli *client, kind string, res *resourceKind) {
+
+	latest := res.latestSample
+	if !latest.IsZero() {
+		elapsed := now.Sub(latest).Seconds() + 5.0 // Allow 5 second jitter.
+		if !res.realTime && elapsed < float64(res.sampling) {
+			// No new data would be available. We're outta here!
+			level.Debug(c.logger).Log("msg", "sampling period has not elapsed", "resource", kind)
+			return
+		}
+	} else {
+		latest = now.Add(time.Duration(-res.sampling) * time.Second)
+	}
+
+	var refs []types.ManagedObjectReference
+	start := latest.Add(time.Duration(-res.sampling) * time.Second * (time.Duration(c.endpoint.cfg.MetricLookback) - 1))
+	for _, obj := range res.objects {
+		refs = append(refs, obj.ref)
+	}
+	level.Debug(c.logger).Log("refs count", len(refs), "kind", kind)
+
+	spec := types.PerfQuerySpec{
+		MaxSample:  1,
+		MetricId:   []types.PerfMetricId{{Instance: "*"}},
+		IntervalId: res.sampling,
+		StartTime:  &start,
+		EndTime:    &now,
+	}
+
+	// chunk refs and collect
+	var (
+		ccWg         sync.WaitGroup
+		refsSize     = len(refs)
+		latestSample = time.Time{}
+		chunkSize    = c.endpoint.cfg.RefChunkSize
+	)
+	for i := 0; i < refsSize; i += chunkSize {
+		end := i + chunkSize
+		if end > refsSize {
+			end = refsSize
+		}
+		ccWg.Add(1)
+		go func(chunk []types.ManagedObjectReference) {
+			defer ccWg.Done()
+			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
+				sampleTime.After(latestSample) && !sampleTime.IsZero() {
+				latestSample = *sampleTime
+			}
+		}(refs[i:end])
+	}
+	ccWg.Wait()
+	if !latestSample.IsZero() {
+		res.latestSample = latestSample
+	}
+}
+
+func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
+	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference) *time.Time {
+	defer func() {
+		c.sem.Release(1)
+	}()
+	if err := c.sem.Acquire(ctx, 1); err != nil {
+		level.Error(c.logger).Log("msg", "error acquiring semaphore", "err", err)
+		return nil
+	}
+	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk)
 	if err != nil {
-		level.Debug(c.logger).Log("msg", "error getting counters", "err", err)
-		return
+		level.Error(c.logger).Log("msg", "error collecting chunk", "err", err)
+		return nil
+	}
+	return sampleTime
+}
+
+func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.PerfQuerySpec,
+	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference) (*time.Time, error) {
+
+	counters, err := cli.counterInfoByName(ctx)
+	if err != nil {
+		level.Error(c.logger).Log("msg", "error getting counters", "err", err)
+		return nil, err
 	}
 
 	var names []string
 	for name := range counters {
 		names = append(names, name)
 	}
-
-	// Create PerfQuerySpec
-	spec := types.PerfQuerySpec{
-		MaxSample:  1,
-		MetricId:   []types.PerfMetricId{{Instance: "*"}},
-		IntervalId: 20,
-	}
-
-	// Query metrics
-	sample, err := myClient.Perf.SampleByName(ctx, spec, names, refs)
+	sample, err := cli.Perf.SampleByName(ctx, spec, names, chunk)
 	if err != nil {
-		level.Debug(c.logger).Log("msg", "error getting sample by name", "err", err)
-		return
+		level.Error(c.logger).Log("msg", "error getting sample by name", "err", err)
+		return nil, err
 	}
 
-	result, err := myClient.Perf.ToMetricSeries(ctx, sample)
+	result, err := cli.Perf.ToMetricSeries(ctx, sample)
 	if err != nil {
-		level.Debug(c.logger).Log("err", err)
-		return
+		level.Error(c.logger).Log("err", err)
+		return nil, err
 	}
 
-	// Read result
 	for _, metric := range result {
 		name := strings.Split(fmt.Sprintf("%s", metric.Entity), ":")[1]
+		level.Debug(c.logger).Log("name", name)
 		for _, v := range metric.Value {
 			counter := counters[v.Name]
 			units := counter.UnitInfo.GetElementDescription().Label
-
-			instance := v.Instance
-			if instance == "" {
-				instance = "-"
-			}
-
 			if len(v.Value) != 0 {
-
 				// get fqName
 				fqName := fmt.Sprintf("vsphere_%s_%s", metric.Entity.Type, strings.ReplaceAll(v.Name, ".", "_"))
 
@@ -100,17 +177,18 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 					nil,
 					constLabels)
 
-				// send metric
+				// send metric, using v.Value[0] since we're only requesting a single sample at this time.
 				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(v.Value[0]))
 				if err != nil {
 					level.Error(c.logger).Log("err", err)
 					continue
 				}
 				metrics <- m
-
 			}
 		}
 	}
+	now := time.Now()
+	return &now, nil
 }
 
 func newVSphereCollector(ctx context.Context, logger log.Logger, e *endpoint) (prometheus.Collector, error) {
@@ -126,5 +204,6 @@ func newVSphereCollector(ctx context.Context, logger log.Logger, e *endpoint) (p
 	return &vsphereCollector{
 		logger:   logger,
 		endpoint: e,
+		sem:      semaphore.NewWeighted(int64(e.cfg.CollectConcurrency)),
 	}, nil
 }
