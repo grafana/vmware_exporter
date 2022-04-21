@@ -51,16 +51,18 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 		if r.enabled {
 			level.Debug(c.logger).Log("msg", "collecting metrics", "kind", k)
 			wg.Add(1)
-			go c.collectResource(ctx, metrics, &wg, now, myClient, k, r)
+			go func(kind string, res *resourceKind) {
+				defer wg.Done()
+				c.collectResource(ctx, metrics, now, myClient, kind, res)
+			}(k, r)
 		}
 	}
 	wg.Wait()
 }
 
-func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- prometheus.Metric, wg *sync.WaitGroup,
+func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- prometheus.Metric,
 	now time.Time, cli *client, kind string, res *resourceKind) {
 
-	defer wg.Done()
 	latest := res.latestSample
 	if !latest.IsZero() {
 		elapsed := now.Sub(latest).Seconds() + 5.0 // Allow 5 second jitter.
@@ -101,24 +103,13 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			end = refsSize
 		}
 		ccWg.Add(1)
-		chunk := refs[i:end]
-		go func(s *semaphore.Weighted, cwg *sync.WaitGroup) {
-			defer func() {
-				cwg.Done()
-				s.Release(1)
-			}()
-			if err := s.Acquire(ctx, 1); err != nil {
-				level.Error(c.logger).Log("msg", "error acquiring semaphore", "err", err)
-				return
-			}
-			sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk)
-			if err != nil {
-				return
-			}
-			if sampleTime.After(latestSample) && !sampleTime.IsZero() {
+		go func(chunk []types.ManagedObjectReference) {
+			defer ccWg.Done()
+			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
+				sampleTime.After(latestSample) && !sampleTime.IsZero() {
 				latestSample = *sampleTime
 			}
-		}(c.sem, &ccWg)
+		}(refs[i:end])
 	}
 	ccWg.Wait()
 	if !latestSample.IsZero() {
@@ -126,11 +117,26 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 	}
 }
 
-func (c *vsphereCollector) collect(ctx context.Context,
-	cli *client,
-	spec types.PerfQuerySpec,
-	metrics chan<- prometheus.Metric,
-	chunk []types.ManagedObjectReference) (*time.Time, error) {
+func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
+	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference) *time.Time {
+	defer func() {
+		c.sem.Release(1)
+	}()
+	if err := c.sem.Acquire(ctx, 1); err != nil {
+		level.Error(c.logger).Log("msg", "error acquiring semaphore", "err", err)
+		return nil
+	}
+	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk)
+	if err != nil {
+		level.Error(c.logger).Log("msg", "error collecting chunk", "err", err)
+		return nil
+	}
+	return sampleTime
+}
+
+func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.PerfQuerySpec,
+	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference) (*time.Time, error) {
+
 	counters, err := cli.counterInfoByName(ctx)
 	if err != nil {
 		level.Error(c.logger).Log("msg", "error getting counters", "err", err)
@@ -155,6 +161,7 @@ func (c *vsphereCollector) collect(ctx context.Context,
 
 	for _, metric := range result {
 		name := strings.Split(fmt.Sprintf("%s", metric.Entity), ":")[1]
+		level.Debug(c.logger).Log("name", name)
 		for _, v := range metric.Value {
 			counter := counters[v.Name]
 			units := counter.UnitInfo.GetElementDescription().Label
