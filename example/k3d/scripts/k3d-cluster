@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+CLUSTER="${1:-grafana-lgtm}"
+
+k3d cluster create "$CLUSTER" --port 50080:80@loadbalancer --api-port 0.0.0.0:54949
+
