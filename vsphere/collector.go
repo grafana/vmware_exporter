@@ -84,7 +84,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 
 	spec := types.PerfQuerySpec{
 		MaxSample:  1,
-		MetricId:   []types.PerfMetricId{{Instance: "*"}},
+		MetricId:   []types.PerfMetricId{{Instance: ""}},
 		IntervalId: res.sampling,
 		StartTime:  &start,
 		EndTime:    &now,
