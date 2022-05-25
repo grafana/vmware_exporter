@@ -16,3 +16,5 @@
 
 .idea/
 tmp/
+dist/
+vendor/
