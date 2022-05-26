@@ -1,0 +1,49 @@
+---
+kind: pipeline
+type: docker
+name: Release
+platform:
+  os: linux
+  arch: amd64
+trigger:
+  ref:
+    - refs/tags/v*
+    - refs/tags/v*-*
+
+steps:
+  - name: create-release
+    image: golang:1.18-bullseye
+    environment:
+      GITHUB_TOKEN:
+        from_secret: GITHUB_TOKEN
+    commands:
+      - make release
+
+---
+kind: pipeline
+type: docker
+name: Build
+platform:
+  os: linux
+  arch: amd64
+trigger:
+  event:
+    - push
+    - pull_request
+    - tag
+  ref:
+    - refs/heads/main
+    - refs/pull/*/head
+    - refs/tags/**
+
+steps:
+  - name: build
+    image: golang:1.18-bullseye
+    commands:
+      - make build
+
+---
+kind: signature
+hmac: bf64b39685d88ce63c3998a317a760fbb7167033b98b1110b0cea64076a476d7
+
+...
