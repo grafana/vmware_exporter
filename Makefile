@@ -13,3 +13,7 @@ release: build
 .PHONY: drone
 drone:
 	drone sign --save grafana/vmware_exporter
+
+.PHONY: lint
+lint:
+	golangci-lint run -v --timeout=10m

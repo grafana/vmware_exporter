@@ -316,7 +316,7 @@ func (e *endpoint) getAncestorName(ctx context.Context, client *client, resource
 			path = append(path, here.Reference().String())
 			o := object.NewCommon(client.Client.Client, r)
 			var result mo.ManagedEntity
-			ctx1, cancel1 := context.WithTimeout(ctx, time.Duration(e.cfg.Timeout))
+			ctx1, cancel1 := context.WithTimeout(ctx, e.cfg.Timeout)
 			defer cancel1()
 			err := o.Properties(ctx1, here, []string{"parent", "name"}, &result)
 			if err != nil {
@@ -465,6 +465,7 @@ func getVMs(ctx context.Context, e *endpoint, resourceFilter *resourceFilter) (o
 				for _, ipType := range e.cfg.IPAddresses {
 					if !(ipType == "ipv4" && isIPv4.MatchString(addr) ||
 						ipType == "ipv6" && isIPv6.MatchString(addr)) {
+
 						continue
 					}
 
