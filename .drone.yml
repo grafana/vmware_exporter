@@ -1,5 +1,27 @@
 ---
 kind: pipeline
+name: Lint
+platform:
+  os: linux
+  arch: amd64
+trigger:
+  event:
+    - push
+    - pull_request
+    - tag
+  ref:
+    - refs/heads/main
+    - refs/pull/*/head
+    - refs/tags/**
+
+steps:
+  - name: lint
+    image: golangci/golangci-lint:v1.44
+    commands:
+      - apt-get update -y && apt-get install -y libsystemd-dev
+      - make DOCKER_OPTS="" lint
+---
+kind: pipeline
 type: docker
 name: Release
 platform:

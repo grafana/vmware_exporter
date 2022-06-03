@@ -107,6 +107,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			defer ccWg.Done()
 			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
+
 				latestSample = *sampleTime
 			}
 		}(refs[i:end])
@@ -119,6 +120,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 
 func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
 	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference) *time.Time {
+
 	defer func() {
 		c.sem.Release(1)
 	}()
@@ -160,7 +162,7 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 	}
 
 	for _, metric := range result {
-		name := strings.Split(fmt.Sprintf("%s", metric.Entity), ":")[1]
+		name := strings.Split(metric.Entity.String(), ":")[1]
 		level.Debug(c.logger).Log("name", name)
 		for _, v := range metric.Value {
 			counter := counters[v.Name]

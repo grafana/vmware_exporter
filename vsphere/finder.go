@@ -2,12 +2,13 @@ package vsphere
 
 import (
 	"context"
+	"reflect"
+	"strings"
+
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/view"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
-	"reflect"
-	"strings"
 )
 
 var (
@@ -77,6 +78,7 @@ func (f *finder) findResources(ctx context.Context, resType, path string, objs m
 
 func (f *finder) descend(ctx context.Context, root types.ManagedObjectReference, resType string,
 	tokens []property.Filter, pos int, objs map[string]types.ObjectContent) error {
+
 	isLeaf := pos == len(tokens)-1
 
 	// No more tokens to match?

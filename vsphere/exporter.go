@@ -2,20 +2,23 @@ package vsphere
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/exporter-toolkit/web"
-	"net/http"
 )
 
+// Exporter holds the data needed to run a vSphere exporter
 type Exporter struct {
 	cfg    *Config
 	logger log.Logger
 	server *http.Server
 }
 
+// NewExporter creates a new vSphere exporter from the given config
 func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	ctx := context.Background()
 	x := &Exporter{
@@ -60,6 +63,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	return x, nil
 }
 
+// Start runs the exporter
 func (e *Exporter) Start() error {
 	level.Debug(e.logger).Log("msg", "starting the server")
 	defer level.Debug(e.logger).Log("msg", "server stopped")

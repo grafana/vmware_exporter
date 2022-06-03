@@ -8,6 +8,7 @@ import (
 	"github.com/vmware/govmomi/vim25/soap"
 )
 
+// Config represents needed config structure for vSphere exporter
 type Config struct {
 	ListenAddr              string
 	TelemetryPath           string
@@ -45,6 +46,7 @@ func (v soapURLFlag) Set(s string) error {
 	return nil
 }
 
+// RegisterFlags register the flag params for the exporter
 func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	// Exporter web configs
 	{
@@ -67,5 +69,4 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 		fs.IntVar(&c.ChunkSize, "vsphere.mo-chunk-size", defaultConfig.ChunkSize,
 			"Managed object reference chunk size to use when fetching from vSphere.")
 	}
-
 }
