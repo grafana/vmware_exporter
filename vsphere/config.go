@@ -16,6 +16,7 @@ type Config struct {
 	ChunkSize               int
 	VSphereURL              *url.URL
 	ObjectDiscoveryInterval time.Duration
+	EnableMetaMetrics       bool
 }
 
 var defaultConfig = &Config{
@@ -24,6 +25,7 @@ var defaultConfig = &Config{
 	TLSConfigPath:           "",
 	ChunkSize:               5,
 	ObjectDiscoveryInterval: 0,
+	EnableMetaMetrics:       false,
 }
 
 type soapURLFlag struct {
@@ -68,5 +70,11 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 			"Object discovery duration interval. Discovery will occur per scrape if set to 0.")
 		fs.IntVar(&c.ChunkSize, "vsphere.mo-chunk-size", defaultConfig.ChunkSize,
 			"Managed object reference chunk size to use when fetching from vSphere.")
+	}
+
+	// Misc configs
+	{
+		fs.BoolVar(&c.EnableMetaMetrics, "meta.metrics", defaultConfig.EnableMetaMetrics,
+			"Enable meta metrics to observe exporter behavior.")
 	}
 }

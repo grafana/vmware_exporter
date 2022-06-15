@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/performance"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -33,6 +34,9 @@ type endpoint struct {
 	metricNameLookup map[int32]string
 	metricNameMux    sync.RWMutex
 	log              log.Logger
+
+	// discovery meta monitoring
+	dm *discoveryMetrics
 }
 
 type resourceKind struct {
@@ -65,7 +69,7 @@ type objectRef struct {
 	lookup    map[string]string
 }
 
-func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, error) {
+func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.Registerer) (*endpoint, error) {
 	e := endpoint{
 		cfg:           cfg,
 		url:           url,
@@ -146,6 +150,10 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger) (*endpoint, e
 		},
 	}
 
+	if m != nil {
+		e.dm = newDiscoveryMetrics(m)
+	}
+
 	return &e, nil
 }
 
@@ -188,12 +196,17 @@ func (e *endpoint) startDiscovery(ctx context.Context) {
 func (e *endpoint) discover(ctx context.Context) error {
 	level.Debug(e.log).Log("msg", "object discovery starting")
 	defer level.Debug(e.log).Log("msg", "object discovery complete")
+
+	if e.dm != nil {
+		timer := prometheus.NewTimer(e.dm.duration)
+		defer timer.ObserveDuration()
+	}
+
 	e.busy.Lock()
 	defer e.busy.Unlock()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-
 	err := e.reloadMetricNameMap(ctx)
 	if err != nil {
 		return err
@@ -254,6 +267,15 @@ func (e *endpoint) discover(ctx context.Context) error {
 	for k, v := range newObjects {
 		e.resourceKinds[k].objects = v
 	}
+
+	if e.dm != nil {
+		e.dm.datacenters.Set(float64(len(e.resourceKinds["datacenter"].objects)))
+		e.dm.clusters.Set(float64(len(e.resourceKinds["cluster"].objects)))
+		e.dm.hosts.Set(float64(len(e.resourceKinds["host"].objects)))
+		e.dm.virtualMachines.Set(float64(len(e.resourceKinds["vm"].objects)))
+		e.dm.datastores.Set(float64(len(e.resourceKinds["datastore"].objects)))
+	}
+
 	return nil
 }
 
@@ -403,6 +425,9 @@ func getClusters(ctx context.Context, e *endpoint, resourceFilter *resourceFilte
 				ref:       r.ExtensibleManagedObject.Reference(),
 				parentRef: p,
 			}
+			if e.dm != nil {
+				e.dm.clusters.Inc()
+			}
 			return nil
 		}()
 		if err != nil {
@@ -528,4 +553,82 @@ func getDatastores(ctx context.Context, e *endpoint, resourceFilter *resourceFil
 		}
 	}
 	return m, nil
+}
+
+type discoveryMetrics struct {
+	// object counters
+	datacenters     prometheus.Gauge
+	clusters        prometheus.Gauge
+	hosts           prometheus.Gauge
+	virtualMachines prometheus.Gauge
+	datastores      prometheus.Gauge
+
+	// misc
+	duration prometheus.Histogram
+}
+
+func newDiscoveryMetrics(reg prometheus.Registerer) *discoveryMetrics {
+	m := &discoveryMetrics{}
+
+	// vmx_discovery_datacenter_count
+	m.datacenters = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "datacenter_count",
+		Help:      "Count of datacenters discovered during last object discovery.",
+	})
+
+	// vmx_discovery_cluster_count
+	m.clusters = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "cluster_count",
+		Help:      "Count of clusters discovered during last object discovery.",
+	})
+
+	// vmx_discovery_host_count
+	m.hosts = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "host_count",
+		Help:      "Count of hosts discovered during last object discovery.",
+	})
+
+	// vmx_discovery_vm_count
+	m.virtualMachines = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "vm_count",
+		Help:      "Count of virtual machines discovered during last object discovery.",
+	})
+
+	// vmx_discovery_datastore_count
+	m.datastores = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "datastore_count",
+		Help:      "Count of datastores discovered during last object discovery.",
+	})
+
+	m.duration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace:   "vmx",
+		Subsystem:   "discovery",
+		Name:        "duration",
+		Help:        "Histogram for discovery duration.",
+		ConstLabels: nil,
+		Buckets:     prometheus.LinearBuckets(0.01, 0.01, 10),
+	})
+
+	if reg != nil {
+		reg.MustRegister(
+			m.datacenters,
+			m.clusters,
+			m.hosts,
+			m.virtualMachines,
+			m.datastores,
+			m.duration,
+		)
+	}
+
+	return m
 }
