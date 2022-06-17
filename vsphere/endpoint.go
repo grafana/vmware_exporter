@@ -270,10 +270,16 @@ func (e *endpoint) discover(ctx context.Context) error {
 
 	if e.dm != nil {
 		e.dm.datacenters.Set(float64(len(e.resourceKinds["datacenter"].objects)))
+		e.dm.datacentersTotal.Add(float64(len(e.resourceKinds["datacenter"].objects)))
 		e.dm.clusters.Set(float64(len(e.resourceKinds["cluster"].objects)))
+		e.dm.clustersTotal.Add(float64(len(e.resourceKinds["cluster"].objects)))
 		e.dm.hosts.Set(float64(len(e.resourceKinds["host"].objects)))
+		e.dm.hostsTotal.Add(float64(len(e.resourceKinds["host"].objects)))
 		e.dm.virtualMachines.Set(float64(len(e.resourceKinds["vm"].objects)))
+		e.dm.virtualMachinesTotal.Add(float64(len(e.resourceKinds["vm"].objects)))
 		e.dm.datastores.Set(float64(len(e.resourceKinds["datastore"].objects)))
+		e.dm.datastoresTotal.Add(float64(len(e.resourceKinds["datastore"].objects)))
+		e.dm.discoveryCount.Inc()
 	}
 
 	return nil
@@ -557,76 +563,137 @@ func getDatastores(ctx context.Context, e *endpoint, resourceFilter *resourceFil
 
 type discoveryMetrics struct {
 	// object counters
-	datacenters     prometheus.Gauge
-	clusters        prometheus.Gauge
-	hosts           prometheus.Gauge
-	virtualMachines prometheus.Gauge
-	datastores      prometheus.Gauge
+	datacenters          prometheus.Gauge
+	clusters             prometheus.Gauge
+	hosts                prometheus.Gauge
+	virtualMachines      prometheus.Gauge
+	datastores           prometheus.Gauge
+	datacentersTotal     prometheus.Counter
+	clustersTotal        prometheus.Counter
+	hostsTotal           prometheus.Counter
+	virtualMachinesTotal prometheus.Counter
+	datastoresTotal      prometheus.Counter
 
 	// misc
-	duration prometheus.Histogram
+	duration       prometheus.Histogram
+	discoveryCount prometheus.Counter
 }
 
 func newDiscoveryMetrics(reg prometheus.Registerer) *discoveryMetrics {
 	m := &discoveryMetrics{}
 
-	// vmx_discovery_datacenter_count
+	// vmx_discovery_datacenter_last
 	m.datacenters = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "vmx",
 		Subsystem: "discovery",
-		Name:      "datacenter_count",
+		Name:      "datacenter_last",
 		Help:      "Count of datacenters discovered during last object discovery.",
 	})
 
-	// vmx_discovery_cluster_count
+	// vmx_discovery_cluster_last
 	m.clusters = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "vmx",
 		Subsystem: "discovery",
-		Name:      "cluster_count",
+		Name:      "cluster_last",
 		Help:      "Count of clusters discovered during last object discovery.",
 	})
 
-	// vmx_discovery_host_count
+	// vmx_discovery_host_last
 	m.hosts = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "vmx",
 		Subsystem: "discovery",
-		Name:      "host_count",
+		Name:      "host_last",
 		Help:      "Count of hosts discovered during last object discovery.",
 	})
 
-	// vmx_discovery_vm_count
+	// vmx_discovery_vm_last
 	m.virtualMachines = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "vmx",
 		Subsystem: "discovery",
-		Name:      "vm_count",
+		Name:      "vm_last",
 		Help:      "Count of virtual machines discovered during last object discovery.",
 	})
 
-	// vmx_discovery_datastore_count
+	// vmx_discovery_datastore_last
 	m.datastores = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "vmx",
 		Subsystem: "discovery",
-		Name:      "datastore_count",
+		Name:      "datastore_last",
 		Help:      "Count of datastores discovered during last object discovery.",
 	})
 
+	// vmx_discovery_datacenter_total
+	m.datacentersTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "datacenter_total",
+		Help:      "Total count of (non-unique) datacenters discovered.",
+	})
+
+	// vmx_discovery_cluster_total
+	m.clustersTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "cluster_total",
+		Help:      "Total count of (non-unique) clusters discovered.",
+	})
+
+	// vmx_discovery_host_total
+	m.hostsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "host_total",
+		Help:      "Total count of (non-unique) hosts discovered.",
+	})
+
+	// vmx_discovery_vm_total
+	m.virtualMachinesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "vm_total",
+		Help:      "Total count of (non-unique) virtual machines discovered.",
+	})
+
+	// vmx_discovery_datastore_total
+	m.datastoresTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "datastore_total",
+		Help:      "Total count of (non-unique) datastores discovered.",
+	})
+
+	// vmx_discovery_duration_seconds
 	m.duration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace:   "vmx",
 		Subsystem:   "discovery",
-		Name:        "duration",
+		Name:        "duration_seconds",
 		Help:        "Histogram for discovery duration.",
 		ConstLabels: nil,
-		Buckets:     prometheus.LinearBuckets(0.01, 0.01, 10),
+		Buckets:     prometheus.ExponentialBuckets(0.1, 2, 10),
+	})
+
+	// vmx_discover_total
+	m.discoveryCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "vmx",
+		Subsystem: "discovery",
+		Name:      "total",
+		Help:      "The number of times object discovery has executed successfully.",
 	})
 
 	if reg != nil {
 		reg.MustRegister(
 			m.datacenters,
+			m.datacentersTotal,
 			m.clusters,
+			m.clustersTotal,
 			m.hosts,
+			m.hostsTotal,
 			m.virtualMachines,
+			m.virtualMachinesTotal,
 			m.datastores,
+			m.datastoresTotal,
 			m.duration,
+			m.discoveryCount,
 		)
 	}
 

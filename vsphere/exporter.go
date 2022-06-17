@@ -7,7 +7,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/exporter-toolkit/web"
 )
@@ -30,19 +29,24 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	}
 	x.logger = logger
 
-	var mReg *prometheus.Registry
-	if cfg.EnableMetaMetrics {
-		mReg = prometheus.NewRegistry()
-		goCollector := collectors.NewGoCollector()
-		mReg.MustRegister(goCollector)
-		buildInfoCollector := collectors.NewBuildInfoCollector()
-		mReg.MustRegister(buildInfoCollector)
-	}
-
 	registry := prometheus.NewRegistry()
 	defaultVSphere.ObjectDiscoveryInterval = cfg.ObjectDiscoveryInterval
 	defaultVSphere.RefChunkSize = cfg.ChunkSize
-	e, err := newEndpoint(defaultVSphere, cfg.VSphereURL, logger, mReg)
+
+	var (
+		e   *endpoint
+		err error
+	)
+	if cfg.EnableMetaMetrics {
+		//goCollector := collectors.NewGoCollector()
+		//registry.MustRegister(goCollector)
+		//buildInfoCollector := collectors.NewBuildInfoCollector()
+		//registry.MustRegister(buildInfoCollector)
+		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, registry)
+	} else {
+		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, nil)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +62,11 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 
 	// create http server
 	topMux := http.NewServeMux()
-	topMux.Handle(cfg.TelemetryPath, newHandler(log.With(logger, "component", "handler"), registry))
+	h := newHandler(log.With(logger, "component", "handler"), registry)
 	if cfg.EnableMetaMetrics {
-		topMux.Handle("/-/metrics", newHandler(log.With(logger, "component", "meta_handler"), mReg))
+		h = promhttp.InstrumentMetricHandler(registry, h)
 	}
+	topMux.Handle(cfg.TelemetryPath, h)
 	x.server = &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: topMux,
@@ -81,7 +86,7 @@ type handler struct {
 	promHandler http.Handler
 }
 
-func newHandler(logger log.Logger, registry *prometheus.Registry) *handler {
+func newHandler(logger log.Logger, registry *prometheus.Registry) http.Handler {
 	promHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{
 		ErrorLog:            nil,
 		ErrorHandling:       promhttp.PanicOnError,
