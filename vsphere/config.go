@@ -16,7 +16,7 @@ type Config struct {
 	ChunkSize               int
 	VSphereURL              *url.URL
 	ObjectDiscoveryInterval time.Duration
-	EnableMetaMetrics       bool
+	EnableExporterMetrics   bool
 }
 
 var defaultConfig = &Config{
@@ -25,7 +25,7 @@ var defaultConfig = &Config{
 	TLSConfigPath:           "",
 	ChunkSize:               5,
 	ObjectDiscoveryInterval: 0,
-	EnableMetaMetrics:       false,
+	EnableExporterMetrics:   false,
 }
 
 type soapURLFlag struct {
@@ -74,7 +74,8 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 
 	// Misc configs
 	{
-		fs.BoolVar(&c.EnableMetaMetrics, "meta.metrics", defaultConfig.EnableMetaMetrics,
-			"Enable meta metrics to observe exporter behavior.")
+		fs.BoolVar(&c.EnableExporterMetrics, "exporter.metrics.enable",
+			defaultConfig.EnableExporterMetrics,
+			"Enable metrics to observe exporter behavior.")
 	}
 }

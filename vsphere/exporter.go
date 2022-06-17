@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/exporter-toolkit/web"
 )
@@ -37,11 +38,11 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 		e   *endpoint
 		err error
 	)
-	if cfg.EnableMetaMetrics {
-		//goCollector := collectors.NewGoCollector()
-		//registry.MustRegister(goCollector)
-		//buildInfoCollector := collectors.NewBuildInfoCollector()
-		//registry.MustRegister(buildInfoCollector)
+	if cfg.EnableExporterMetrics {
+		goCollector := collectors.NewGoCollector()
+		registry.MustRegister(goCollector)
+		buildInfoCollector := collectors.NewBuildInfoCollector()
+		registry.MustRegister(buildInfoCollector)
 		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, registry)
 	} else {
 		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, nil)
@@ -63,7 +64,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	// create http server
 	topMux := http.NewServeMux()
 	h := newHandler(log.With(logger, "component", "handler"), registry)
-	if cfg.EnableMetaMetrics {
+	if cfg.EnableExporterMetrics {
 		h = promhttp.InstrumentMetricHandler(registry, h)
 	}
 	topMux.Handle(cfg.TelemetryPath, h)
