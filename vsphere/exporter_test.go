@@ -76,11 +76,9 @@ func TestExporter(t *testing.T) {
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-
 		// Check if the line is in the response body
-		if !strings.Contains(string(allMetrics), scanner.Text()) {
+		if !strings.Contains(allMetrics, scanner.Text()) {
 			t.Errorf("Expected metrics to contain '%s'", scanner.Text())
 		}
 	}
-
 }
