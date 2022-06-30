@@ -28,9 +28,14 @@ platform:
   os: linux
   arch: amd64
 trigger:
+  event:
+    - push
+    - pull_request
+    - tag
   ref:
-    - refs/tags/v*
-    - refs/tags/v*-*
+    - refs/heads/main
+    - refs/pull/*/head
+    - refs/tags/**
 
 steps:
   - name: test
