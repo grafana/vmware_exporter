@@ -23,6 +23,30 @@ steps:
 ---
 kind: pipeline
 type: docker
+name: Test
+platform:
+  os: linux
+  arch: amd64
+trigger:
+  event:
+    - push
+    - pull_request
+    - tag
+  ref:
+    - refs/heads/main
+    - refs/pull/*/head
+    - refs/tags/**
+
+steps:
+  - name: test
+    image: golang:1.18-bullseye
+    commands:
+      - make test
+depends_on:
+  - Lint
+---
+kind: pipeline
+type: docker
 name: Release
 platform:
   os: linux
@@ -66,6 +90,6 @@ steps:
 
 ---
 kind: signature
-hmac: bf64b39685d88ce63c3998a317a760fbb7167033b98b1110b0cea64076a476d7
+hmac: 7a8c0b2d29d84188d192a2687945f653587e0ea322ea5d8008f022058b49c9ed
 
 ...

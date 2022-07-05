@@ -17,3 +17,7 @@ drone:
 .PHONY: lint
 lint:
 	golangci-lint run -v --timeout=10m
+
+.PHONY: test
+test:
+	go test -v -race ./...
