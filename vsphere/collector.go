@@ -96,6 +96,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 		refsSize     = len(refs)
 		latestSample = time.Time{}
 		chunkSize    = c.endpoint.cfg.RefChunkSize
+		latestMut    sync.RWMutex
 	)
 	for i := 0; i < refsSize; i += chunkSize {
 		end := i + chunkSize
@@ -105,17 +106,24 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 		ccWg.Add(1)
 		go func(chunk []types.ManagedObjectReference) {
 			defer ccWg.Done()
+			latestMut.RLock()
 			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
-
+				latestMut.RUnlock()
+				latestMut.Lock()
 				latestSample = *sampleTime
+				latestMut.Unlock()
+			} else {
+				latestMut.RUnlock()
 			}
 		}(refs[i:end])
 	}
 	ccWg.Wait()
+	latestMut.RLock()
 	if !latestSample.IsZero() {
 		res.latestSample = latestSample
 	}
+	latestMut.RUnlock()
 }
 
 func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
