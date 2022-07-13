@@ -107,7 +107,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 		go func(chunk []types.ManagedObjectReference) {
 			defer ccWg.Done()
 			latestMut.RLock()
-			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
+			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk, res); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
 				latestMut.RUnlock()
 				latestMut.Lock()
@@ -127,7 +127,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 }
 
 func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
-	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference) *time.Time {
+	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference, res *resourceKind) *time.Time {
 
 	defer func() {
 		c.sem.Release(1)
@@ -136,7 +136,7 @@ func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prom
 		level.Error(c.logger).Log("msg", "error acquiring semaphore", "err", err)
 		return nil
 	}
-	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk)
+	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk, res)
 	if err != nil {
 		level.Error(c.logger).Log("msg", "error collecting chunk", "err", err)
 		return nil
@@ -145,7 +145,7 @@ func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prom
 }
 
 func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.PerfQuerySpec,
-	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference) (*time.Time, error) {
+	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference, res *resourceKind) (*time.Time, error) {
 
 	counters, err := cli.counterInfoByName(ctx)
 	if err != nil {
@@ -182,6 +182,7 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 				// create desc
 				constLabels := make(prometheus.Labels)
 				constLabels["name"] = name
+
 				desc := prometheus.NewDesc(
 					fqName, fmt.Sprintf("metric: %s units: %s", v.Name, units),
 					nil,
