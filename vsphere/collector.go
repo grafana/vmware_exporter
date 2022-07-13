@@ -104,10 +104,10 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			end = refsSize
 		}
 		ccWg.Add(1)
-		go func(chunk []types.ManagedObjectReference) {
+		go func(chunk []types.ManagedObjectReference, pRes *resourceKind) {
 			defer ccWg.Done()
 			latestMut.RLock()
-			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk, res); sampleTime != nil &&
+			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk, pRes); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
 				latestMut.RUnlock()
 				latestMut.Lock()
@@ -116,7 +116,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			} else {
 				latestMut.RUnlock()
 			}
-		}(refs[i:end])
+		}(refs[i:end], res)
 	}
 	ccWg.Wait()
 	latestMut.RLock()
@@ -169,19 +169,42 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 		return nil, err
 	}
 
+	var (
+		parent     string
+		parentType string
+	)
+
 	for _, metric := range result {
 		name := strings.Split(metric.Entity.String(), ":")[1]
 		level.Debug(c.logger).Log("name", name)
+
+		// create desc
+		constLabels := make(prometheus.Labels)
+		constLabels["name"] = name
+
+		// add type/parent labels
+		parent = c.endpoint.resourceKinds[res.name].objects[name].parentRef.Value
+		parentType = res.parent
+		for parent != "" {
+			// get parent name
+			if pRes, ok := c.endpoint.resourceKinds[parentType]; ok {
+				if pObj := pRes.objects[parent]; pObj != nil {
+					constLabels[parentType] = pObj.name
+					parent = c.endpoint.resourceKinds[pRes.name].objects[parent].parentRef.Value
+					parentType = pRes.parent
+					continue
+				}
+			}
+			parent = ""
+			parentType = ""
+		}
+
 		for _, v := range metric.Value {
 			counter := counters[v.Name]
 			units := counter.UnitInfo.GetElementDescription().Label
 			if len(v.Value) != 0 {
 				// get fqName
 				fqName := fmt.Sprintf("vsphere_%s_%s", metric.Entity.Type, strings.ReplaceAll(v.Name, ".", "_"))
-
-				// create desc
-				constLabels := make(prometheus.Labels)
-				constLabels["name"] = name
 
 				desc := prometheus.NewDesc(
 					fqName, fmt.Sprintf("metric: %s units: %s", v.Name, units),
