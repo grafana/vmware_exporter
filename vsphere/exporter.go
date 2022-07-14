@@ -34,23 +34,17 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	defaultVSphere.ObjectDiscoveryInterval = cfg.ObjectDiscoveryInterval
 	defaultVSphere.RefChunkSize = cfg.ChunkSize
 
-	var (
-		e   *endpoint
-		err error
-	)
+	var e *endpoint
 	if cfg.EnableExporterMetrics {
 		goCollector := collectors.NewGoCollector()
 		registry.MustRegister(goCollector)
 		buildInfoCollector := collectors.NewBuildInfoCollector()
 		registry.MustRegister(buildInfoCollector)
-		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, registry)
+		e = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, registry)
 	} else {
-		e, err = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, nil)
+		e = newEndpoint(defaultVSphere, cfg.VSphereURL, logger, nil)
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	vsphereCollector, err := newVSphereCollector(
 		ctx,
 		log.With(logger, "collector", "vsphere"),

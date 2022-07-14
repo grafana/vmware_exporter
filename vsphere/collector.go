@@ -109,6 +109,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			latestMut.RLock()
 			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk, pRes); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
+
 				latestMut.RUnlock()
 				latestMut.Lock()
 				latestSample = *sampleTime
