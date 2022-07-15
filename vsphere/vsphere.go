@@ -1,7 +1,6 @@
 package vsphere
 
 import (
-	"context"
 	"time"
 )
 
@@ -29,8 +28,6 @@ type vSphereConfig struct {
 	ObjectDiscoveryInterval time.Duration
 	Timeout                 time.Duration
 	HistoricalInterval      time.Duration
-
-	cancel context.CancelFunc
 }
 
 var defaultVSphere = &vSphereConfig{

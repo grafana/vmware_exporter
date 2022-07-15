@@ -42,8 +42,6 @@ type endpoint struct {
 type resourceKind struct {
 	name             string
 	vcName           string
-	pKey             string
-	parentTag        string
 	enabled          bool
 	realTime         bool
 	sampling         int32
@@ -54,7 +52,6 @@ type resourceKind struct {
 	metrics          performance.MetricList
 	parent           string
 	latestSample     time.Time
-	lastColl         time.Time
 }
 
 type objectMap map[string]*objectRef
@@ -69,7 +66,7 @@ type objectRef struct {
 	lookup    map[string]string
 }
 
-func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.Registerer) (*endpoint, error) {
+func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.Registerer) *endpoint {
 	e := endpoint{
 		cfg:           cfg,
 		url:           url,
@@ -82,8 +79,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		"datacenter": {
 			name:             "datacenter",
 			vcName:           "Datacenter",
-			pKey:             "dcname",
-			parentTag:        "",
 			enabled:          true,
 			realTime:         false,
 			sampling:         int32(cfg.HistoricalInterval.Seconds()),
@@ -96,8 +91,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		"cluster": {
 			name:             "cluster",
 			vcName:           "ClusterComputeResource",
-			pKey:             "clustername",
-			parentTag:        "dcname",
 			enabled:          true,
 			realTime:         false,
 			sampling:         int32(cfg.HistoricalInterval.Seconds()),
@@ -110,8 +103,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		"host": {
 			name:             "host",
 			vcName:           "HostSystem",
-			pKey:             "esxhostname",
-			parentTag:        "clustername",
 			enabled:          true,
 			realTime:         true,
 			sampling:         20,
@@ -124,8 +115,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		"vm": {
 			name:             "vm",
 			vcName:           "VirtualMachine",
-			pKey:             "vmname",
-			parentTag:        "esxhostname",
 			enabled:          true,
 			realTime:         true,
 			sampling:         20,
@@ -138,7 +127,6 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		"datastore": {
 			name:             "datastore",
 			vcName:           "Datastore",
-			pKey:             "dsname",
 			enabled:          true,
 			realTime:         false,
 			sampling:         int32(cfg.HistoricalInterval.Seconds()),
@@ -154,7 +142,7 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 		e.dm = newDiscoveryMetrics(m)
 	}
 
-	return &e, nil
+	return &e
 }
 
 // Note that canceling the context will cancel the discovery process.

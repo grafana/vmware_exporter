@@ -36,14 +36,13 @@ type clientFactory struct {
 
 // client represents a connection to vSphere and is backed by a govmomi connection
 type client struct {
-	Client    *govmomi.Client
-	Views     *view.Manager
-	Root      *view.ContainerView
-	Perf      *performance.Manager
-	Valid     bool
-	Timeout   time.Duration
-	closeGate sync.Once
-	logger    log.Logger
+	Client  *govmomi.Client
+	Views   *view.Manager
+	Root    *view.ContainerView
+	Perf    *performance.Manager
+	Valid   bool
+	Timeout time.Duration
+	logger  log.Logger
 }
 
 // newClientFactory creates a new clientFactory and prepares it for use.

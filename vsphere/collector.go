@@ -96,6 +96,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 		refsSize     = len(refs)
 		latestSample = time.Time{}
 		chunkSize    = c.endpoint.cfg.RefChunkSize
+		latestMut    sync.RWMutex
 	)
 	for i := 0; i < refsSize; i += chunkSize {
 		end := i + chunkSize
@@ -103,23 +104,31 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 			end = refsSize
 		}
 		ccWg.Add(1)
-		go func(chunk []types.ManagedObjectReference) {
+		go func(chunk []types.ManagedObjectReference, pRes *resourceKind) {
 			defer ccWg.Done()
-			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk); sampleTime != nil &&
+			latestMut.RLock()
+			if sampleTime := c.collectChunk(ctx, metrics, cli, spec, chunk, pRes); sampleTime != nil &&
 				sampleTime.After(latestSample) && !sampleTime.IsZero() {
 
+				latestMut.RUnlock()
+				latestMut.Lock()
 				latestSample = *sampleTime
+				latestMut.Unlock()
+			} else {
+				latestMut.RUnlock()
 			}
-		}(refs[i:end])
+		}(refs[i:end], res)
 	}
 	ccWg.Wait()
+	latestMut.RLock()
 	if !latestSample.IsZero() {
 		res.latestSample = latestSample
 	}
+	latestMut.RUnlock()
 }
 
 func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prometheus.Metric, cli *client,
-	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference) *time.Time {
+	spec types.PerfQuerySpec, chunk []types.ManagedObjectReference, res *resourceKind) *time.Time {
 
 	defer func() {
 		c.sem.Release(1)
@@ -128,7 +137,7 @@ func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prom
 		level.Error(c.logger).Log("msg", "error acquiring semaphore", "err", err)
 		return nil
 	}
-	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk)
+	sampleTime, err := c.collect(ctx, cli, spec, metrics, chunk, res)
 	if err != nil {
 		level.Error(c.logger).Log("msg", "error collecting chunk", "err", err)
 		return nil
@@ -137,7 +146,7 @@ func (c *vsphereCollector) collectChunk(ctx context.Context, metrics chan<- prom
 }
 
 func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.PerfQuerySpec,
-	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference) (*time.Time, error) {
+	metrics chan<- prometheus.Metric, chunk []types.ManagedObjectReference, res *resourceKind) (*time.Time, error) {
 
 	counters, err := cli.counterInfoByName(ctx)
 	if err != nil {
@@ -161,9 +170,36 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 		return nil, err
 	}
 
+	var (
+		parent     string
+		parentType string
+	)
+
 	for _, metric := range result {
 		name := strings.Split(metric.Entity.String(), ":")[1]
 		level.Debug(c.logger).Log("name", name)
+
+		// create desc
+		constLabels := make(prometheus.Labels)
+		constLabels["name"] = name
+
+		// add type/parent labels
+		parent = c.endpoint.resourceKinds[res.name].objects[name].parentRef.Value
+		parentType = res.parent
+		for parent != "" {
+			// get parent name
+			if pRes, ok := c.endpoint.resourceKinds[parentType]; ok {
+				if pObj := pRes.objects[parent]; pObj != nil {
+					constLabels[parentType] = pObj.name
+					parent = c.endpoint.resourceKinds[pRes.name].objects[parent].parentRef.Value
+					parentType = pRes.parent
+					continue
+				}
+			}
+			parent = ""
+			parentType = ""
+		}
+
 		for _, v := range metric.Value {
 			counter := counters[v.Name]
 			units := counter.UnitInfo.GetElementDescription().Label
@@ -171,9 +207,6 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 				// get fqName
 				fqName := fmt.Sprintf("vsphere_%s_%s", metric.Entity.Type, strings.ReplaceAll(v.Name, ".", "_"))
 
-				// create desc
-				constLabels := make(prometheus.Labels)
-				constLabels["name"] = name
 				desc := prometheus.NewDesc(
 					fqName, fmt.Sprintf("metric: %s units: %s", v.Name, units),
 					nil,
