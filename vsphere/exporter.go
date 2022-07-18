@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"net/http/pprof"
+
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,6 +63,13 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	if cfg.EnableExporterMetrics {
 		h = promhttp.InstrumentMetricHandler(registry, h)
 	}
+	// Register pprof handlers
+	topMux.HandleFunc("/debug/pprof/", pprof.Index)
+	topMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	topMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	topMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	topMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
 	topMux.Handle(cfg.TelemetryPath, h)
 	x.server = &http.Server{
 		Addr:    cfg.ListenAddr,
