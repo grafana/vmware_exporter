@@ -129,7 +129,7 @@ func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.
 			vcName:           "Datastore",
 			enabled:          true,
 			realTime:         false,
-			sampling:         int32(cfg.HistoricalInterval.Seconds()),
+			sampling:         20,
 			objects:          make(objectMap),
 			paths:            []string{"/*/datastore/**"},
 			collectInstances: cfg.DatastoreInstances,
