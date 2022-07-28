@@ -176,18 +176,16 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 	)
 
 	for _, metric := range result {
-		name := strings.Split(metric.Entity.String(), ":")[1]
-		level.Debug(c.logger).Log("name", name)
+		mo := strings.Split(metric.Entity.String(), ":")[1]
 
-		// create desc
 		constLabels := make(prometheus.Labels)
-		constLabels["name"] = name
+		constLabels["mo"] = mo
+		constLabels["name"] = c.endpoint.resourceKinds[res.name].objects[mo].name
 
 		// add type/parent labels
-		parent = c.endpoint.resourceKinds[res.name].objects[name].parentRef.Value
+		parent = c.endpoint.resourceKinds[res.name].objects[mo].parentRef.Value
 		parentType = res.parent
 		for parent != "" {
-			// get parent name
 			if pRes, ok := c.endpoint.resourceKinds[parentType]; ok {
 				if pObj := pRes.objects[parent]; pObj != nil {
 					constLabels[parentType] = pObj.name
