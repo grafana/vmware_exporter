@@ -179,7 +179,7 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 		mo := strings.Split(metric.Entity.String(), ":")[1]
 
 		constLabels := make(prometheus.Labels)
-		constLabels["mo"] = mo
+		constLabels["moid"] = mo
 		constLabels["name"] = c.endpoint.resourceKinds[res.name].objects[mo].name
 
 		// add type/parent labels
