@@ -88,6 +88,7 @@ func (c *vsphereCollector) collectResource(ctx context.Context, metrics chan<- p
 		IntervalId: res.sampling,
 		StartTime:  &start,
 		EndTime:    &now,
+		Format:     "csv",
 	}
 
 	// chunk refs and collect
