@@ -186,14 +186,17 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 		parent = c.endpoint.resourceKinds[res.name].objects[mo].parentRef.Value
 		parentType = res.parent
 		for parent != "" {
+			c.endpoint.collectMux.RLock()
 			if pRes, ok := c.endpoint.resourceKinds[parentType]; ok {
 				if pObj := pRes.objects[parent]; pObj != nil {
 					constLabels[parentType] = pObj.name
 					parent = c.endpoint.resourceKinds[pRes.name].objects[parent].parentRef.Value
 					parentType = pRes.parent
+					c.endpoint.collectMux.RUnlock()
 					continue
 				}
 			}
+			c.endpoint.collectMux.RUnlock()
 			parent = ""
 			parentType = ""
 		}

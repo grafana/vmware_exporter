@@ -3,13 +3,15 @@ package vsphere
 import (
 	"bufio"
 	"crypto/tls"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/vmware/govmomi/simulator"
 )
 
@@ -18,6 +20,9 @@ func createSim(folders int) (*simulator.Model, *simulator.Server, error) {
 
 	m.Folder = folders
 	m.Datacenter = 2
+	m.Cluster = 2
+	m.Host = 4
+	m.Machine = 8
 
 	err := m.Create()
 	if err != nil {
@@ -28,6 +33,15 @@ func createSim(folders int) (*simulator.Model, *simulator.Server, error) {
 
 	s := m.Service.NewServer()
 	return m, s, nil
+}
+
+type testLogger struct {
+	T *testing.T
+}
+
+func (l testLogger) Write(p []byte) (n int, err error) {
+	l.T.Logf(string(p))
+	return len(p), nil
 }
 
 func TestExporter(t *testing.T) {
@@ -42,11 +56,19 @@ func TestExporter(t *testing.T) {
 		TelemetryPath:           "/metrics",
 		VSphereURL:              s.URL,
 		TLSConfigPath:           "",
-		ChunkSize:               5,
-		ObjectDiscoveryInterval: 0,
+		ChunkSize:               256,
+		ObjectDiscoveryInterval: 60 * time.Second,
 		EnableExporterMetrics:   false,
 	}
-	e, err := NewExporter(nil, cfg)
+
+	var logger log.Logger
+	logger = log.NewLogfmtLogger(log.NewSyncWriter(testLogger{
+		T: t,
+	}))
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
+	logger = level.NewFilter(logger, level.AllowDebug())
+
+	e, err := NewExporter(logger, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +87,8 @@ func TestExporter(t *testing.T) {
 
 	allMetrics := rr.Body.String()
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("err", err)
+		t.Fatal(err)
 	}
 
 	f, err := os.Open("test_metrics.txt")
