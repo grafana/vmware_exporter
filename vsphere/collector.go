@@ -25,8 +25,6 @@ func (c *vsphereCollector) Describe(chan<- *prometheus.Desc) {
 }
 
 func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
-	c.endpoint.collectMux.RLock()
-	defer c.endpoint.collectMux.RUnlock()
 	ctx := context.Background()
 	myClient, err := c.endpoint.clientFactory.GetClient(ctx)
 	if err != nil {
@@ -41,6 +39,9 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 			return
 		}
 	}
+
+	c.endpoint.collectMux.RLock()
+	defer c.endpoint.collectMux.RUnlock()
 
 	now, err := myClient.getServerTime(ctx)
 	if err != nil {
