@@ -40,6 +40,9 @@ func (c *vsphereCollector) Collect(metrics chan<- prometheus.Metric) {
 		}
 	}
 
+	c.endpoint.collectMux.RLock()
+	defer c.endpoint.collectMux.RUnlock()
+
 	now, err := myClient.getServerTime(ctx)
 	if err != nil {
 		level.Error(c.logger).Log("msg", "failed to get server time", "err", err.Error())
