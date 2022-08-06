@@ -35,6 +35,9 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	registry := prometheus.NewRegistry()
 	defaultVSphere.ObjectDiscoveryInterval = cfg.ObjectDiscoveryInterval
 	defaultVSphere.RefChunkSize = cfg.ChunkSize
+	if cfg.CollectConcurrency > 0 {
+		defaultVSphere.CollectConcurrency = cfg.CollectConcurrency
+	}
 
 	var e *endpoint
 	if cfg.EnableExporterMetrics {
