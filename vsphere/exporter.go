@@ -78,6 +78,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 		Addr:    cfg.ListenAddr,
 		Handler: topMux,
 	}
+
 	return x, nil
 }
 
@@ -87,6 +88,12 @@ func (e *Exporter) Start() error {
 	defer level.Debug(e.logger).Log("msg", "server stopped")
 	return web.ListenAndServe(e.server, e.cfg.TLSConfigPath, log.With(e.logger, "component", "web"))
 }
+
+func (e *Exporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.server.Handler.ServeHTTP(w, r)
+}
+
+var _ http.Handler = (*Exporter)(nil)
 
 type handler struct {
 	logger      log.Logger
