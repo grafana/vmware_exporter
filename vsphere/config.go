@@ -14,6 +14,7 @@ type Config struct {
 	TelemetryPath           string
 	TLSConfigPath           string
 	ChunkSize               int
+	CollectConcurrency      int
 	VSphereURL              *url.URL
 	ObjectDiscoveryInterval time.Duration
 	EnableExporterMetrics   bool
@@ -24,6 +25,7 @@ var defaultConfig = &Config{
 	TelemetryPath:           "/metrics",
 	TLSConfigPath:           "",
 	ChunkSize:               5,
+	CollectConcurrency:      8,
 	ObjectDiscoveryInterval: 0,
 	EnableExporterMetrics:   false,
 }
@@ -70,6 +72,9 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 			"Object discovery duration interval. Discovery will occur per scrape if set to 0.")
 		fs.IntVar(&c.ChunkSize, "vsphere.mo-chunk-size", defaultConfig.ChunkSize,
 			"Managed object reference chunk size to use when fetching from vSphere.")
+		fs.IntVar(&c.CollectConcurrency, "vsphere.concurrent-requests",
+			defaultConfig.CollectConcurrency,
+			"The number of concurrent requests to make while fetching metrics from vSphere.")
 	}
 
 	// Misc configs
