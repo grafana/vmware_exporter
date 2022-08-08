@@ -75,6 +75,9 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	topMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	topMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
+	if cfg.TelemetryPath == "" {
+		cfg.TelemetryPath = defaultConfig.TelemetryPath
+	}
 	topMux.Handle(cfg.TelemetryPath, h)
 	x.metricsHandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r)
