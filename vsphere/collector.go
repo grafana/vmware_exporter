@@ -214,6 +214,8 @@ func (c *vsphereCollector) collect(ctx context.Context, cli *client, spec types.
 					constLabels)
 
 				// send metric, using v.Value[0] since we're only requesting a single sample at this time.
+				// TODO: need to make sure that this is what we want to do here -- in some cases vsphere is returning
+				// multiple samples for a counter because there are multiple instances of the resource e.g. cpu cores
 				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(v.Value[0]))
 				if err != nil {
 					level.Error(c.logger).Log("err", err)

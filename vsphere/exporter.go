@@ -19,6 +19,8 @@ type Exporter struct {
 	cfg    *Config
 	logger log.Logger
 	server *http.Server
+
+	metricsHandlerFunc http.HandlerFunc
 }
 
 // NewExporter creates a new vSphere exporter from the given config
@@ -73,12 +75,17 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 	topMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	topMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
+	if cfg.TelemetryPath == "" {
+		cfg.TelemetryPath = defaultConfig.TelemetryPath
+	}
 	topMux.Handle(cfg.TelemetryPath, h)
+	x.metricsHandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r)
+	}
 	x.server = &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: topMux,
 	}
-
 	return x, nil
 }
 
@@ -90,7 +97,7 @@ func (e *Exporter) Start() error {
 }
 
 func (e *Exporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	e.server.Handler.ServeHTTP(w, r)
+	e.metricsHandlerFunc(w, r)
 }
 
 var _ http.Handler = (*Exporter)(nil)
