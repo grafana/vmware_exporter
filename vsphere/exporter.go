@@ -93,7 +93,11 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 func (e *Exporter) Start() error {
 	level.Debug(e.logger).Log("msg", "starting the server")
 	defer level.Debug(e.logger).Log("msg", "server stopped")
-	return web.ListenAndServe(e.server, e.cfg.TLSConfigPath, log.With(e.logger, "component", "web"))
+
+	flagConfig := &web.FlagConfig{
+		WebConfigFile: &e.cfg.TLSConfigPath,
+	}
+	return web.ListenAndServe(e.server, flagConfig, log.With(e.logger, "component", "web"))
 }
 
 func (e *Exporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
