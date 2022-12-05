@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/go-kit/log v0.2.1
-	github.com/prometheus/client_golang v1.13.0
+	github.com/prometheus/client_golang v1.13.1
 	github.com/prometheus/exporter-toolkit v0.8.2
 	github.com/vmware/govmomi v0.27.2
 	golang.org/x/sync v0.1.0
