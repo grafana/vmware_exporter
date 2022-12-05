@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
 # install github cli
-artifact=$(curl -sL https://github.com/cli/cli/releases/latest | grep  -o -E "gh_.*_linux_amd64.tar.gz" | tail -n1)
-cd /opt && curl -sSL https://github.com/cli/cli/releases/latest/download/${artifact} | tar -zxvf - ${artifact%*.tar.gz}/bin/gh && cd -
-GH=/opt/${artifact%*.tar.gz}/bin/gh
+
+GH_RELEASE=v2.14.3
+ARTIFACT=gh_${GH_RELEASE#v}_linux_amd64.tar.gz
+cd /opt && curl -sSL https://github.com/cli/cli/releases/download/${GH_RELEASE}/${ARTIFACT} | tar -zxvf - ${ARTIFACT%*.tar.gz}/bin/gh && cd -
+GH=/opt/${ARTIFACT%*.tar.gz}/bin/gh
 if [[ ! -f "$GH" ]]; then
   echo "failed to install github cli"
   exit 1
 fi
+echo -n "$GITHUB_TOKEN" | "$GH" auth login --with-token
 
 # create release
 if [[ ! -f dist/vmware_exporter ]]; then
@@ -16,4 +19,5 @@ if [[ ! -f dist/vmware_exporter ]]; then
 fi
 tar -cvzf vmware_exporter_linux_amd64.tar.gz dist/vmware_exporter
 sha256sum vmware_exporter_linux_amd64.tar.gz > checksum.txt
+
 "$GH" release create "${DRONE_TAG}" vmware_exporter_linux_amd64.tar.gz checksum.txt
