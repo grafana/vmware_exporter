@@ -83,7 +83,6 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 		h.ServeHTTP(w, r)
 	}
 	x.server = &http.Server{
-		Addr:    cfg.ListenAddr,
 		Handler: topMux,
 	}
 	return x, nil
@@ -95,7 +94,8 @@ func (e *Exporter) Start() error {
 	defer level.Debug(e.logger).Log("msg", "server stopped")
 
 	flagConfig := &web.FlagConfig{
-		WebConfigFile: &e.cfg.TLSConfigPath,
+		WebListenAddresses: &[]string{e.cfg.ListenAddr},
+		WebConfigFile:      &e.cfg.TLSConfigPath,
 	}
 	return web.ListenAndServe(e.server, flagConfig, log.With(e.logger, "component", "web"))
 }
