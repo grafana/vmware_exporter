@@ -65,9 +65,9 @@ func (r *resourceFilter) findAll(ctx context.Context, dst interface{}) error {
 
 func (f *finder) findResources(ctx context.Context, resType, path string, objs map[string]types.ObjectContent) error {
 	p := strings.Split(path, "/")
-	flt := make([]property.Filter, len(p)-1)
+	flt := make([]property.Match, len(p)-1)
 	for i := 1; i < len(p); i++ {
-		flt[i-1] = property.Filter{"name": p[i]}
+		flt[i-1] = property.Match{"name": p[i]}
 	}
 	err := f.descend(ctx, f.client.Client.ServiceContent.RootFolder, resType, flt, 0, objs)
 	if err != nil {
@@ -77,7 +77,7 @@ func (f *finder) findResources(ctx context.Context, resType, path string, objs m
 }
 
 func (f *finder) descend(ctx context.Context, root types.ManagedObjectReference, resType string,
-	tokens []property.Filter, pos int, objs map[string]types.ObjectContent) error {
+	tokens []property.Match, pos int, objs map[string]types.ObjectContent) error {
 
 	isLeaf := pos == len(tokens)-1
 
@@ -218,10 +218,10 @@ func (f *finder) findAll(ctx context.Context, resType string, paths, excludePath
 	return objectContentToTypedArray(objs, dst)
 }
 
-func matchName(f property.Filter, props []types.DynamicProperty) bool {
+func matchName(f property.Match, props []types.DynamicProperty) bool {
 	for _, prop := range props {
 		if prop.Name == "name" {
-			return f.MatchProperty(prop)
+			return f.Property(prop)
 		}
 	}
 	return false

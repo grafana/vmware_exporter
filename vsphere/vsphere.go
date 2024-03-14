@@ -1,3 +1,4 @@
+// Package vsphere implements the exporter's functionality.
 package vsphere
 
 import (

@@ -1,3 +1,4 @@
+// A Prometheus exporter for VMWare vSphere Performance Metrics
 package main
 
 import (
