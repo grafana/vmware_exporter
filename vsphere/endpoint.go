@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -9,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/performance"
@@ -33,7 +32,7 @@ type endpoint struct {
 	busy             sync.Mutex
 	metricNameLookup map[int32]string
 	metricNameMux    sync.RWMutex
-	log              log.Logger
+	log              *slog.Logger
 
 	// discovery meta monitoring
 	dm *discoveryMetrics
@@ -66,7 +65,7 @@ type objectRef struct {
 	lookup    map[string]string
 }
 
-func newEndpoint(cfg *vSphereConfig, url *url.URL, log log.Logger, m prometheus.Registerer) *endpoint {
+func newEndpoint(cfg *vSphereConfig, url *url.URL, log *slog.Logger, m prometheus.Registerer) *endpoint {
 	e := endpoint{
 		cfg:           cfg,
 		url:           url,
@@ -157,7 +156,7 @@ func (e *endpoint) init(ctx context.Context) error {
 func (e *endpoint) initialDiscovery(ctx context.Context) {
 	err := e.discover(ctx)
 	if err != nil && err != context.Canceled {
-		level.Error(e.log).Log("msg", "error in initialDiscovery", "host", e.url.Host, "err", err.Error())
+		e.log.Error("error in initialDiscovery", "host", e.url.Host, "err", err.Error())
 	}
 	e.startDiscovery(ctx)
 }
@@ -170,10 +169,10 @@ func (e *endpoint) startDiscovery(ctx context.Context) {
 			case <-e.discoveryTicker.C:
 				err := e.discover(ctx)
 				if err != nil && err != context.Canceled {
-					level.Error(e.log).Log("msg", "discovery error", "host", e.url.Host, "err", err.Error())
+					e.log.Error("discovery error", "host", e.url.Host, "err", err.Error())
 				}
 			case <-ctx.Done():
-				level.Debug(e.log).Log("msg", "existing discovery goroutine", "host", e.url.Host)
+				e.log.Debug("existing discovery goroutine", "host", e.url.Host)
 				e.discoveryTicker.Stop()
 				return
 			}
@@ -182,8 +181,8 @@ func (e *endpoint) startDiscovery(ctx context.Context) {
 }
 
 func (e *endpoint) discover(ctx context.Context) error {
-	level.Debug(e.log).Log("msg", "object discovery starting")
-	defer level.Debug(e.log).Log("msg", "object discovery complete")
+	e.log.Debug("object discovery starting")
+	defer e.log.Debug("object discovery complete")
 
 	if e.dm != nil {
 		timer := prometheus.NewTimer(e.dm.duration)
@@ -205,7 +204,7 @@ func (e *endpoint) discover(ctx context.Context) error {
 		return err
 	}
 
-	level.Debug(e.log).Log("msg", "discover new objects", "host", e.url.Host)
+	e.log.Debug("discover new objects", "host", e.url.Host)
 	dcNameCache := make(map[string]string)
 
 	numRes := int64(0)
@@ -213,7 +212,7 @@ func (e *endpoint) discover(ctx context.Context) error {
 	// Populate resource objects, and endpoint instance info.
 	newObjects := make(map[string]objectMap)
 	for k, res := range e.resourceKinds {
-		level.Debug(e.log).Log("msg", "discovering resources", "name", res.name)
+		e.log.Debug("discovering resources", "name", res.name)
 		// Need to do this for all resource types even if they are not enabled
 		if res.enabled || k != "vm" {
 			rf := resourceFilter{
@@ -406,7 +405,7 @@ func getClusters(ctx context.Context, e *endpoint, resourceFilter *resourceFilte
 				defer cancel3()
 				err = o.Properties(ctx3, *r.Parent, []string{"parent"}, &folder)
 				if err != nil {
-					level.Warn(e.log).Log("msg", "error while getting folder parent", "err", err.Error())
+					e.log.Warn("error while getting folder parent", "err", err.Error())
 					p = nil
 				} else {
 					pp := folder.Parent.Reference()

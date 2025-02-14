@@ -3,6 +3,7 @@ package vsphere
 import (
 	"bufio"
 	"crypto/tls"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,7 +46,7 @@ func (l testLogger) Write(p []byte) (n int, err error) {
 }
 
 func TestExporter(t *testing.T) {
-	var logger log.Logger
+	var logger *slog.Logger
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(testLogger{
 		T: t,
 	}))
@@ -60,7 +61,7 @@ func TestExporter(t *testing.T) {
 	}
 
 	type args struct {
-		logger log.Logger
+		logger *slog.Logger
 		cfg    *Config
 	}
 	tests := []struct {

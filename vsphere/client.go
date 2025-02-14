@@ -3,14 +3,13 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/performance"
@@ -31,7 +30,7 @@ type clientFactory struct {
 	mux        sync.Mutex
 	vSphereURL *url.URL
 	cfg        *vSphereConfig
-	logger     log.Logger
+	logger     *slog.Logger
 }
 
 // client represents a connection to vSphere and is backed by a govmomi connection
@@ -42,11 +41,11 @@ type client struct {
 	Perf    *performance.Manager
 	Valid   bool
 	Timeout time.Duration
-	logger  log.Logger
+	logger  *slog.Logger
 }
 
 // newClientFactory creates a new clientFactory and prepares it for use.
-func newClientFactory(l log.Logger, vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
+func newClientFactory(l *slog.Logger, vSphereURL *url.URL, cfg *vSphereConfig) *clientFactory {
 	return &clientFactory{
 		cfg:        cfg,
 		vSphereURL: vSphereURL,
@@ -95,7 +94,7 @@ func (cf *clientFactory) GetClient(ctx context.Context) (*client, error) {
 
 // newClient creates a new vSphere client based on the url and setting passed as parameters.
 // TODO: tls config
-func newClient(ctx context.Context, l log.Logger, vSphereURL *url.URL, cfg *vSphereConfig) (*client, error) {
+func newClient(ctx context.Context, l *slog.Logger, vSphereURL *url.URL, cfg *vSphereConfig) (*client, error) {
 	if cfg.Username != "" {
 		vSphereURL.User = url.UserPassword(cfg.Username, cfg.Password)
 	}
@@ -193,7 +192,7 @@ func (c *client) getMaxQueryMetrics(ctx context.Context) (int, error) {
 			if s, ok := res[0].GetOptionValue().Value.(string); ok {
 				v, err := strconv.Atoi(s)
 				if err == nil {
-					level.Debug(c.logger).Log("msg", "vCenter maxQueryMetrics is defined", "maxQueryMetrics", v)
+					c.logger.Debug("vCenter maxQueryMetrics is defined", "maxQueryMetrics", v)
 					if v == -1 {
 						// Whatever the server says, we never ask for more metrics than this.
 						return absoluteMaxMetrics, nil
@@ -204,18 +203,18 @@ func (c *client) getMaxQueryMetrics(ctx context.Context) (int, error) {
 			// Fall through version-based inference if value isn't usable
 		}
 	} else {
-		level.Debug(c.logger).Log("msg", "option query for maxMetrics failed. Using default")
+		c.logger.Debug("option query for maxMetrics failed. Using default")
 	}
 
 	// No usable maxQueryMetrics setting. Infer based on version
 	ver := c.Client.Client.ServiceContent.About.Version
 	parts := strings.Split(ver, ".")
 	if len(parts) < 2 {
-		level.Warn(c.logger).Log("msg",
+		c.logger.Warn(
 			"vCenter returned an invalid version string. Using default query size=64", "version", ver)
 		return 64, nil
 	}
-	level.Debug(c.logger).Log("vCenter version", ver)
+	c.logger.Debug(fmt.Sprintf("vCenter version %s", ver))
 	major, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, err
