@@ -16,7 +16,7 @@ trigger:
 
 steps:
   - name: lint
-    image: golangci/golangci-lint:v1.51.2
+    image: golangci/golangci-lint:v1.62.0
     commands:
       - apt-get update -y && apt-get install -y libsystemd-dev
       - make DOCKER_OPTS="" lint
@@ -39,7 +39,7 @@ trigger:
 
 steps:
   - name: test
-    image: golang:1.18-bullseye
+    image: golang:1.23-bullseye
     commands:
       - make test
 depends_on:
@@ -58,7 +58,7 @@ trigger:
 
 steps:
   - name: create-release
-    image: golang:1.18-bullseye
+    image: golang:1.23-bullseye
     environment:
       GITHUB_TOKEN:
         from_secret: GITHUB_TOKEN
@@ -84,7 +84,7 @@ trigger:
 
 steps:
   - name: build
-    image: golang:1.18-bullseye
+    image: golang:1.23-bullseye
     commands:
       - make build
 

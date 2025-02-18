@@ -3,6 +3,7 @@ package vsphere
 import (
 	"bufio"
 	"crypto/tls"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/vmware/govmomi/simulator"
 )
 
@@ -35,22 +34,11 @@ func createSim(folders int) (*simulator.Model, *simulator.Server, error) {
 	return m, s, nil
 }
 
-type testLogger struct {
-	T *testing.T
-}
-
-func (l testLogger) Write(p []byte) (n int, err error) {
-	l.T.Logf(string(p))
-	return len(p), nil
-}
-
 func TestExporter(t *testing.T) {
-	var logger log.Logger
-	logger = log.NewLogfmtLogger(log.NewSyncWriter(testLogger{
-		T: t,
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: true,
 	}))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
-	logger = level.NewFilter(logger, level.AllowDebug())
 
 	m, s, err := createSim(0)
 	defer m.Remove()
@@ -60,7 +48,7 @@ func TestExporter(t *testing.T) {
 	}
 
 	type args struct {
-		logger log.Logger
+		logger *slog.Logger
 		cfg    *Config
 	}
 	tests := []struct {
@@ -117,10 +105,6 @@ func TestExporter(t *testing.T) {
 			}
 
 			allMetrics := rr.Body.String()
-			if err != nil {
-				level.Error(logger).Log("err", err)
-				t.Fatal(err)
-			}
 
 			f, err := os.Open("test_metrics.txt")
 			if err != nil {

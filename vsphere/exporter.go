@@ -2,35 +2,35 @@ package vsphere
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"net/http/pprof"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/exporter-toolkit/web"
 )
 
 // Exporter holds the data needed to run a vSphere exporter
 type Exporter struct {
 	cfg    *Config
-	logger log.Logger
+	logger *slog.Logger
 	server *http.Server
 
 	metricsHandlerFunc http.HandlerFunc
 }
 
 // NewExporter creates a new vSphere exporter from the given config
-func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
+func NewExporter(logger *slog.Logger, cfg *Config) (*Exporter, error) {
 	ctx := context.Background()
 	x := &Exporter{
 		cfg: cfg,
 	}
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = promslog.NewNopLogger()
 	}
 	x.logger = logger
 
@@ -54,7 +54,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 
 	vsphereCollector, err := newVSphereCollector(
 		ctx,
-		log.With(logger, "collector", "vsphere"),
+		logger.With("collector", "vsphere"),
 		e,
 	)
 	if err != nil {
@@ -64,7 +64,7 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 
 	// create http server
 	topMux := http.NewServeMux()
-	h := newHandler(log.With(logger, "component", "handler"), registry)
+	h := newHandler(logger.With("component", "handler"), registry)
 	if cfg.EnableExporterMetrics {
 		h = promhttp.InstrumentMetricHandler(registry, h)
 	}
@@ -91,13 +91,13 @@ func NewExporter(logger log.Logger, cfg *Config) (*Exporter, error) {
 
 // Start runs the exporter
 func (e *Exporter) Start() error {
-	level.Debug(e.logger).Log("msg", "starting the server")
-	defer level.Debug(e.logger).Log("msg", "server stopped")
+	e.logger.Debug("starting the server")
+	defer e.logger.Debug("server stopped")
 
 	flagConfig := &web.FlagConfig{
 		WebConfigFile: &e.cfg.TLSConfigPath,
 	}
-	return web.ListenAndServe(e.server, flagConfig, log.With(e.logger, "component", "web"))
+	return web.ListenAndServe(e.server, flagConfig, e.logger.With("component", "web"))
 }
 
 func (e *Exporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -107,11 +107,11 @@ func (e *Exporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 var _ http.Handler = (*Exporter)(nil)
 
 type handler struct {
-	logger      log.Logger
+	logger      *slog.Logger
 	promHandler http.Handler
 }
 
-func newHandler(logger log.Logger, registry *prometheus.Registry) http.Handler {
+func newHandler(logger *slog.Logger, registry *prometheus.Registry) http.Handler {
 	promHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{
 		ErrorLog:            nil,
 		ErrorHandling:       promhttp.PanicOnError,
@@ -129,6 +129,6 @@ func newHandler(logger log.Logger, registry *prometheus.Registry) http.Handler {
 
 // ServeHTTP implements http.Handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	level.Debug(h.logger).Log("msg", "serving request")
+	h.logger.Debug("serving request")
 	h.promHandler.ServeHTTP(w, r)
 }
