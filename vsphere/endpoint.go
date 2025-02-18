@@ -430,7 +430,7 @@ func getClusters(ctx context.Context, e *endpoint, resourceFilter *resourceFilte
 	return m, nil
 }
 
-func getHosts(ctx context.Context, e *endpoint, resourceFilter *resourceFilter) (objectMap, error) {
+func getHosts(ctx context.Context, _ *endpoint, resourceFilter *resourceFilter) (objectMap, error) {
 	var resources []mo.HostSystem
 	err := resourceFilter.findAll(ctx, &resources)
 	if err != nil {
