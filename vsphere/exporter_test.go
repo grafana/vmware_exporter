@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/vmware/govmomi/simulator"
 )
 
@@ -46,12 +44,10 @@ func (l testLogger) Write(p []byte) (n int, err error) {
 }
 
 func TestExporter(t *testing.T) {
-	var logger *slog.Logger
-	logger = log.NewLogfmtLogger(log.NewSyncWriter(testLogger{
-		T: t,
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: true,
 	}))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
-	logger = level.NewFilter(logger, level.AllowDebug())
 
 	m, s, err := createSim(0)
 	defer m.Remove()
@@ -118,10 +114,6 @@ func TestExporter(t *testing.T) {
 			}
 
 			allMetrics := rr.Body.String()
-			if err != nil {
-				level.Error(logger).Log("err", err)
-				t.Fatal(err)
-			}
 
 			f, err := os.Open("test_metrics.txt")
 			if err != nil {
