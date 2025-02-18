@@ -34,15 +34,6 @@ func createSim(folders int) (*simulator.Model, *simulator.Server, error) {
 	return m, s, nil
 }
 
-type testLogger struct {
-	T *testing.T
-}
-
-func (l testLogger) Write(p []byte) (n int, err error) {
-	l.T.Logf(string(p))
-	return len(p), nil
-}
-
 func TestExporter(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level:     slog.LevelDebug,
