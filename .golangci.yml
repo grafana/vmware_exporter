@@ -8,7 +8,6 @@ output:
 
 linters:
   enable:
-    - deadcode    # Report on unused code
     - errcheck    # Report unchecked errors
     - goconst     # Find repeated strings that could be replaced by constant
     - gofmt       # Check whether code was gofmt-ed
