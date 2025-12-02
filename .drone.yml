@@ -39,7 +39,7 @@ trigger:
 
 steps:
   - name: test
-    image: golang:1.23-bullseye
+    image: golang:1.24-bullseye@sha256:2cdc80dc25edcb96ada1654f73092f2928045d037581fa4aa7c40d18af7dd85a
     commands:
       - make test
 depends_on:
@@ -58,7 +58,7 @@ trigger:
 
 steps:
   - name: create-release
-    image: golang:1.23-bullseye
+    image: golang:1.24-bullseye@sha256:2cdc80dc25edcb96ada1654f73092f2928045d037581fa4aa7c40d18af7dd85a
     environment:
       GITHUB_TOKEN:
         from_secret: GITHUB_TOKEN
@@ -84,7 +84,7 @@ trigger:
 
 steps:
   - name: build
-    image: golang:1.23-bullseye
+    image: golang:1.24-bullseye@sha256:2cdc80dc25edcb96ada1654f73092f2928045d037581fa4aa7c40d18af7dd85a
     commands:
       - make build
 
