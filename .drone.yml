@@ -16,7 +16,7 @@ trigger:
 
 steps:
   - name: lint
-    image: golangci/golangci-lint:v1.62.0
+    image: golangci/golangci-lint:v1.64.8@sha256:2987913e27f4eca9c8a39129d2c7bc1e74fbcf77f181e01cea607be437aa5cb8
     commands:
       - apt-get update -y && apt-get install -y libsystemd-dev
       - make DOCKER_OPTS="" lint
