@@ -1,8 +1,6 @@
 module github.com/grafana/vmware_exporter
 
-go 1.24.0
-
-toolchain go1.24.10
+go 1.24.11
 
 require (
 	github.com/prometheus/client_golang v1.20.4
