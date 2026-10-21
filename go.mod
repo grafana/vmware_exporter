@@ -6,7 +6,7 @@ toolchain go1.24.10
 
 require (
 	github.com/prometheus/client_golang v1.20.4
-	github.com/prometheus/common v0.62.0
+	github.com/prometheus/common v0.72.1
 	github.com/prometheus/exporter-toolkit v0.14.0
 	github.com/vmware/govmomi v0.36.1
 	golang.org/x/sync v0.18.0
